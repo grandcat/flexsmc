@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.github.flexsmc";
+option java_outer_classname = "Gateway";
+
+package flexsmc;
+
+import "google/protobuf/empty.proto";
+
+// Interface exported by the gateway.
+service Gateway {
+    rpc ping (google.protobuf.Empty) returns (CmdResult) {}
+}
+
+message CmdResult {
+    enum Status {
+        SUCCESS     = 0;
+        UNKNOWN_CMD = 1;
+        DENIED      = 2;
+    }
+    Status status = 1;
+}
