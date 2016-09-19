@@ -8,7 +8,7 @@ import (
 	"time"
 
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
-	gtypeEmpty "github.com/golang/protobuf/ptypes/empty"
+	"github.com/grandcat/flexsmc/directory"
 	proto "github.com/grandcat/flexsmc/proto"
 	auth "github.com/grandcat/srpc/authentication"
 	"github.com/grandcat/srpc/client"
@@ -34,13 +34,14 @@ type Node struct {
 	server.Server
 
 	// Own members follow here
+	reg *directory.Registry
 }
 
-func (n *Node) Ping(ctx context.Context, in *gtypeEmpty.Empty) (*proto.CmdResult, error) {
+func (n *Node) Ping(ctx context.Context, in *proto.SMCInfo) (*proto.CmdResult, error) {
 	a, ok := auth.FromAuthContext(ctx)
 	if ok {
-		log.Println(">>PingCTX:", a.PeerID)
-		// TODO: verify peer identity in directory
+		log.Println("Last peer ", a.ID, "IP:", a.Addr, " activity:", n.reg.LastActivity(a.ID))
+		n.reg.Touch(a.ID, a.Addr, in.Tcpport)
 
 		return &proto.CmdResult{Status: proto.CmdResult_SUCCESS}, nil
 	}
@@ -51,7 +52,7 @@ func runGateway() {
 	log.Println("Running as gateway...")
 	// Configure server with pairing module
 	tlsKeyPrim := server.TLSKeyFile(*certFile, *keyFile)
-	n := &Node{server.NewServer(tlsKeyPrim)}
+	n := &Node{server.NewServer(tlsKeyPrim), directory.NewRegistry()}
 	mPairing := pairing.NewServerApproval(n.GetPeerCerts(), gtypeAny.Any{"flexsmc/peerinfo", []byte(*peerInfo)})
 	n.RegisterModules(mPairing)
 
@@ -144,7 +145,7 @@ func runPeer() {
 
 	for i := 0; i < 3; i++ {
 		ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
-		resp, err := c.Ping(ctx, &gtypeEmpty.Empty{})
+		resp, err := c.Ping(ctx, &proto.SMCInfo{12345})
 		if err != nil {
 			log.Printf("Could not ping GW %s: %v", peerID, err)
 			return
