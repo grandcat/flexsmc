@@ -69,7 +69,7 @@ func (d *Registry) Add(p PeerInfo) {
 	d.peers[p.ID] = &p
 }
 
-func (d *Registry) Touch(id auth.PeerID, addr net.Addr, smcPort uint) {
+func (d *Registry) Touch(id auth.PeerID, addr net.Addr, smcPort uint16) {
 	// TODO: check if gw accepts peer for SMC actions
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -80,7 +80,6 @@ func (d *Registry) Touch(id auth.PeerID, addr net.Addr, smcPort uint) {
 		p = d.peers[id]
 	}
 	// Assume TCP endpoint and extract peer IP address.
-	//
 	if tcpAddr, ok := addr.(*net.TCPAddr); ok {
 		p.Addr = net.TCPAddr{IP: tcpAddr.IP, Port: int(smcPort)}
 	}

@@ -8,11 +8,22 @@ package flexsmc;
 
 // Interface exported by the gateway.
 service Gateway {
-    rpc ping (SMCInfo) returns (CmdResult) {}
+    rpc Ping(SMCInfo) returns (CmdResult) {}
+    rpc AwaitSMCCommands(SMCInfo) returns (stream SMCCmd) {}
 }
 
 message SMCInfo {
+    // tcpport
     uint32 tcpport = 1;
+}
+
+message SMCCmd {
+    enum Type {
+        CMD1 = 0;
+        CMD2 = 1;
+        CMD3 = 2;
+    }
+    Type type = 1;
 }
 
 message CmdResult {

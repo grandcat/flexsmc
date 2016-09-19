@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -41,11 +42,26 @@ func (n *Node) Ping(ctx context.Context, in *proto.SMCInfo) (*proto.CmdResult, e
 	a, ok := auth.FromAuthContext(ctx)
 	if ok {
 		log.Println("Last peer ", a.ID, "IP:", a.Addr, " activity:", n.reg.LastActivity(a.ID))
-		n.reg.Touch(a.ID, a.Addr, in.Tcpport)
+		n.reg.Touch(a.ID, a.Addr, uint16(in.Tcpport))
 
 		return &proto.CmdResult{Status: proto.CmdResult_SUCCESS}, nil
 	}
 	return nil, ErrPermDenied
+}
+
+func (n *Node) AwaitSMCCommands(in *proto.SMCInfo, stream proto.Gateway_AwaitSMCCommandsServer) error {
+	log.Println(">>Stream context:", stream.Context())
+
+	for i := 0; i < 3; i++ {
+		if i == 1 {
+			time.Sleep(time.Second)
+		}
+		if err := stream.Send(&proto.SMCCmd{Type: proto.SMCCmd_Type(i)}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func runGateway() {
@@ -143,6 +159,7 @@ func runPeer() {
 	}
 	c := proto.NewGatewayClient(cc)
 
+	// Test1: ping our gateway
 	for i := 0; i < 3; i++ {
 		ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
 		resp, err := c.Ping(ctx, &proto.SMCInfo{12345})
@@ -151,6 +168,23 @@ func runPeer() {
 			return
 		}
 		log.Println("Ping resp:", resp.Status)
+	}
+	// Test2: receive stream of SMCCmds
+	myInfo := &proto.SMCInfo{Tcpport: 42424}
+	stream, err := c.AwaitSMCCommands(context.Background(), myInfo)
+	if err != nil {
+		log.Printf("Could not receive GW's SMC cmds: %v", err)
+		return
+	}
+	for {
+		cmd, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", c, err)
+		}
+		log.Printf(">> [%v] SMC Cmd: %v", time.Now(), cmd)
 	}
 
 	n.TearDown()
