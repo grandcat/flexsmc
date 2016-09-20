@@ -22,3 +22,8 @@ _testmain.go
 *.exe
 *.test
 *.prof
+debug
+
+# IDE files
+## VSCode
+.vscode/
