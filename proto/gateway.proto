@@ -18,12 +18,55 @@ message SMCInfo {
 }
 
 message SMCCmd {
+    // Categories:
+    // * SMCInstruction (Prepare, Start)
+    // * (ACK)
     enum Type {
-        CMD1 = 0;
-        CMD2 = 1;
-        CMD3 = 2;
+        PREPARE = 0;
+        SESSION = 1;
+        // ...
+        ABORT   = 127;
     }
-    Type type = 1;
+    Type type           = 1;
+    uint64 sessionID    = 2;
+    // Payload packet
+    oneof payload {
+        Prepare prepare = 3;
+    }
+}
+
+enum DataOrigin {
+    TEMPERATURE  = 0;
+    HUMIDITY     = 1;
+    AMBIENT      = 2;
+    AIR_PRESSURE = 3;
+
+    PRESENCE     = 10;
+
+    // Dynamically assigned sensor types.
+    RESERVED_999             = 999;
+    DYNAMIC_ASSIGNMENT_1000  = 1000;
+    // ...
+    DYNAMIC_ASSIGNMENT_99999 = 99999;
+    RESERVED_100000          = 100000;
+}
+
+enum Aggregator {
+    SUM             = 0;
+    AVG             = 1;
+    MEDIAN          = 2;
+    STD_DEVIATION   = 3;
+}
+
+message Prepare {
+    message Participant {
+        string identity = 1;
+        string addr     = 2;
+    }
+    repeated Participant participants = 1;
+    DataOrigin source                 = 2;
+    // (Pre)Selectors
+    Aggregator Aggregator             = 4;
 }
 
 message CmdResult {
@@ -33,4 +76,5 @@ message CmdResult {
         DENIED      = 2;
     }
     Status status = 1;
+    string msg    = 2;
 }
