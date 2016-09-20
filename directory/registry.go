@@ -1,12 +1,18 @@
 package directory
 
 import (
+	"errors"
 	"log"
 	"net"
 	"sync"
 	"time"
 
+	proto "github.com/grandcat/flexsmc/proto"
 	auth "github.com/grandcat/srpc/authentication"
+)
+
+var (
+	ErrNotRegistered = errors.New("peer ID not registered")
 )
 
 type PeerRole uint8
@@ -42,17 +48,21 @@ type PeerInfo struct {
 	Caps string
 	// TODO: metrics about errors, peers' reliability, ...
 
-	// TODO: communication channel?
+	// Comm interface for messages from GW -> peer
+	tx chan interface{}
 }
 
 type Registry struct {
 	peers map[auth.PeerID]*PeerInfo
 	mu    sync.RWMutex
+	// Peers' feedback: peers -> GW's registry
+	rx <-chan interface{}
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
 		peers: make(map[auth.PeerID]*PeerInfo),
+		rx:    make(chan interface{}, 32),
 	}
 }
 
@@ -86,16 +96,60 @@ func (d *Registry) Touch(id auth.PeerID, addr net.Addr, smcPort uint16) {
 	p.lastPing = time.Now()
 }
 
+// NoActivity means that a peer was inactive for a very long time to
+// disregard it for the time being.
+// The duration is around 42 years.
+const NoActivity time.Duration = time.Hour * 24 * 365 * 42
+
 func (d *Registry) LastActivity(id auth.PeerID) time.Duration {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	p, ok := d.peers[id]
 	if !ok {
-		return -1
+		return NoActivity
 	}
 	if p.lastPing.IsZero() {
-		return -1
+		return NoActivity
 	}
 	return time.Since(p.lastPing)
+}
+
+func (d *Registry) SubscribeCmdChan(id auth.PeerID) (<-chan interface{}, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	p, ok := d.peers[id]
+	if !ok {
+		return nil, ErrNotRegistered
+	}
+	// We assume that the previous chan was closed via UnsubscribeCmdChan().
+	p.tx = make(chan interface{}, 4)
+	log.Println("Create new comm chan directed to peer", id)
+
+	// XXX: test sending some messages
+	go func() {
+		time.Sleep(time.Second * 2)
+		for i := 2; i >= 0; i-- {
+			prep := proto.SMCCmd_Prepare{&proto.Prepare{
+				Participants: []*proto.Prepare_Participant{&proto.Prepare_Participant{Addr: "myAddr", Identity: "ident"}},
+			}}
+			p.tx <- proto.SMCCmd{Type: proto.SMCCmd_Type(i), Payload: &prep}
+		}
+	}()
+
+	return p.tx, nil
+}
+
+func (d *Registry) UnsubscribeCmdChan(id auth.PeerID) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	p, ok := d.peers[id]
+	if !ok {
+		return
+	}
+
+	close(p.tx) // NOTE: panics if chan is closed already!
+	log.Println("Close comm chan to peer", id)
 }

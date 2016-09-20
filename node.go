@@ -50,14 +50,52 @@ func (n *Node) Ping(ctx context.Context, in *proto.SMCInfo) (*proto.CmdResult, e
 }
 
 func (n *Node) AwaitSMCCommands(in *proto.SMCInfo, stream proto.Gateway_AwaitSMCCommandsServer) error {
-	log.Println(">>Stream context:", stream.Context())
+	ctx := stream.Context()
+	a, _ := auth.FromAuthContext(ctx)
+	log.Println(">>Stream requested from:", a.ID)
+	// Implicitly notify the registry of peer activity so the first call
+	// to ping() RPC can come later.
+	n.reg.Touch(a.ID, a.Addr, uint16(in.Tcpport))
 
-	for i := 0; i < 3; i++ {
-		if i == 1 {
-			time.Sleep(time.Second)
-		}
-		if err := stream.Send(&proto.SMCCmd{Type: proto.SMCCmd_Type(i)}); err != nil {
-			return err
+	// Await commands for our requesting peer and send it to him.
+	// If there is no communication with this specific peer for a while,
+	// we need to check whether it is still alive. Otherwise, this peer is
+	// shutdown and needs to register again for commands.
+	rx, err := n.reg.SubscribeCmdChan(a.ID)
+	if err != nil {
+		return err
+	}
+	defer n.reg.UnsubscribeCmdChan(a.ID)
+
+	t := time.NewTicker(time.Second * 30)
+	defer t.Stop()
+	for {
+		select {
+		// Incoming commands for TX
+		case m, ok := <-rx:
+			if !ok {
+				return fmt.Errorf("AwaitSMCCommands: chan closed externally")
+			}
+			cmd := m.(proto.SMCCmd)
+			log.Printf("M -> %s: %v", a.ID, m)
+			if err := stream.Send(&cmd); err != nil {
+				return err
+			}
+		// Periodic activity check
+		// We cannot fully rely on gRPC send a notification via the context. Especially
+		// for long lasting streams with few communication, it is recommend to
+		// keep the connection alive or tear it down.
+		case <-t.C:
+			act := n.reg.LastActivity(a.ID).Seconds()
+			if act > 20 {
+				// Shutdown instruction channel as the peer is probably offline.
+				return fmt.Errorf("no activity for too long")
+			}
+		// Handling remote peer gracefully shutting down stream connection
+		case <-ctx.Done():
+			log.Printf("Conn to peer %s died unexpectedly", a.ID)
+			// Stopping ticker and unsubscribing from chan is done here (-> defer)
+			return nil
 		}
 	}
 
@@ -160,15 +198,19 @@ func runPeer() {
 	c := proto.NewGatewayClient(cc)
 
 	// Test1: ping our gateway
-	for i := 0; i < 3; i++ {
-		ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
-		resp, err := c.Ping(ctx, &proto.SMCInfo{12345})
-		if err != nil {
-			log.Printf("Could not ping GW %s: %v", peerID, err)
-			return
+	go func() {
+		for i := 0; i < 4; i++ {
+			ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
+			resp, err := c.Ping(ctx, &proto.SMCInfo{12345})
+			if err != nil {
+				log.Printf("Could not ping GW %s: %v", peerID, err)
+				return
+			}
+			log.Println("Ping resp:", resp.Status)
+
+			time.Sleep(time.Second * 10)
 		}
-		log.Println("Ping resp:", resp.Status)
-	}
+	}()
 	// Test2: receive stream of SMCCmds
 	myInfo := &proto.SMCInfo{Tcpport: 42424}
 	stream, err := c.AwaitSMCCommands(context.Background(), myInfo)
