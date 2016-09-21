@@ -31,7 +31,7 @@ var (
 )
 
 type Node struct {
-	// sRPC base layer
+	// sRPC mandatory base layer
 	server.Server
 
 	// Own members follow here
@@ -41,8 +41,9 @@ type Node struct {
 func (n *Node) Ping(ctx context.Context, in *proto.SMCInfo) (*proto.CmdResult, error) {
 	a, ok := auth.FromAuthContext(ctx)
 	if ok {
-		log.Println("Last peer ", a.ID, "IP:", a.Addr, " activity:", n.reg.LastActivity(a.ID))
-		n.reg.Touch(a.ID, a.Addr, uint16(in.Tcpport))
+		p := n.reg.GetOrCreate(a.ID)
+		log.Println("Last peer ", a.ID, "IP:", a.Addr, " activity:", p.LastActivity())
+		p.Touch(a.Addr)
 
 		return &proto.CmdResult{Status: proto.CmdResult_SUCCESS}, nil
 	}
@@ -50,22 +51,26 @@ func (n *Node) Ping(ctx context.Context, in *proto.SMCInfo) (*proto.CmdResult, e
 }
 
 func (n *Node) AwaitSMCCommands(in *proto.SMCInfo, stream proto.Gateway_AwaitSMCCommandsServer) error {
-	ctx := stream.Context()
-	a, _ := auth.FromAuthContext(ctx)
+	streamCtx := stream.Context()
+	a, _ := auth.FromAuthContext(streamCtx)
 	log.Println(">>Stream requested from:", a.ID)
 	// Implicitly notify the registry of peer activity so the first call
 	// to ping() RPC can come later.
-	n.reg.Touch(a.ID, a.Addr, uint16(in.Tcpport))
+	p, err := n.reg.Get(a.ID)
+	if err != nil {
+		return err
+	}
+	p.Touch(a.Addr)
 
 	// Await commands for our requesting peer and send it to him.
 	// If there is no communication with this specific peer for a while,
 	// we need to check whether it is still alive. Otherwise, this peer is
 	// shutdown and needs to register again for commands.
-	rx, err := n.reg.SubscribeCmdChan(a.ID)
+	rx := p.SubscribeCmdChan()
 	if err != nil {
 		return err
 	}
-	defer n.reg.UnsubscribeCmdChan(a.ID)
+	defer p.UnsubscribeCmdChan()
 
 	t := time.NewTicker(time.Second * 30)
 	defer t.Stop()
@@ -86,13 +91,13 @@ func (n *Node) AwaitSMCCommands(in *proto.SMCInfo, stream proto.Gateway_AwaitSMC
 		// for long lasting streams with few communication, it is recommend to
 		// keep the connection alive or tear it down.
 		case <-t.C:
-			act := n.reg.LastActivity(a.ID).Seconds()
-			if act > 20 {
+			act := p.LastActivity().Seconds()
+			if act > directory.MaxActivityGap {
 				// Shutdown instruction channel as the peer is probably offline.
 				return fmt.Errorf("no activity for too long")
 			}
 		// Handling remote peer gracefully shutting down stream connection
-		case <-ctx.Done():
+		case <-streamCtx.Done():
 			log.Printf("Conn to peer %s died unexpectedly", a.ID)
 			// Stopping ticker and unsubscribing from chan is done here (-> defer)
 			return nil
@@ -211,6 +216,10 @@ func runPeer() {
 			time.Sleep(time.Second * 10)
 		}
 	}()
+	// XXX: wait some time until first ping arrived to register our node to the
+	//      internal DB.
+	time.Sleep(time.Millisecond * 250)
+
 	// Test2: receive stream of SMCCmds
 	myInfo := &proto.SMCInfo{Tcpport: 42424}
 	stream, err := c.AwaitSMCCommands(context.Background(), myInfo)
@@ -219,14 +228,18 @@ func runPeer() {
 		return
 	}
 	for {
-		cmd, err := stream.Recv()
+		m, err := stream.Recv()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
 			log.Fatalf("%v.ListFeatures(_) = _, %v", c, err)
 		}
-		log.Printf(">> [%v] SMC Cmd: %v", time.Now(), cmd)
+		log.Printf(">> [%v] SMC Cmd: %v", time.Now(), m)
+		switch cmd := m.Payload.(type) {
+		case *proto.SMCCmd_Prepare:
+			log.Println(">> Participants:", cmd.Prepare.Participants)
+		}
 	}
 
 	n.TearDown()
