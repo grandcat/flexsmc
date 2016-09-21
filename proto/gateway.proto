@@ -58,15 +58,21 @@ enum Aggregator {
     STD_DEVIATION   = 3;
 }
 
+message SMCTask {
+    string Set            = 1;
+    DataOrigin source     = 2;
+    // (Pre)Selectors
+    Aggregator aggregator = 4;
+    string signature      = 7;
+}
+
 message Prepare {
     message Participant {
         string identity = 1;
         string addr     = 2;
     }
     repeated Participant participants = 1;
-    DataOrigin source                 = 2;
-    // (Pre)Selectors
-    Aggregator Aggregator             = 4;
+    SMCTask smcTask                   = 2;
 }
 
 message CmdResult {
