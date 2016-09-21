@@ -33,28 +33,25 @@ func newPeerWatcher() *peerWatcher {
 func (w *peerWatcher) watch() {
 	log.Println("Starting peerWatcher")
 
-	for {
-		select {
-		case n := <-w.notifies:
-			// Update our view on available nodes
-			if n.avail == 0 {
-				// Peer went offline (temporary or forever)
-				w.mu.Lock()
-				delete(w.peersOn, n.p.ID)
-				w.mu.Unlock()
+	for n := range w.notifies {
+		// Update our view on available nodes
+		if n.avail == 0 {
+			// Peer went offline (temporary or forever)
+			w.mu.Lock()
+			delete(w.peersOn, n.p.ID)
+			w.mu.Unlock()
 
-				log.Printf("[%s] Offline or unreachable", n.p.ID)
-			} else {
-				// Peer went online
-				w.mu.Lock()
-				w.peersOn[n.p.ID] = n.p
-				w.mu.Unlock()
+			log.Printf("[%s] Offline or unreachable", n.p.ID)
+		} else {
+			// Peer went online
+			w.mu.Lock()
+			w.peersOn[n.p.ID] = n.p
+			w.mu.Unlock()
 
-				log.Printf("[%s] Online", n.p.ID)
-			}
-			// List peers currently available
-			log.Println("Online peers:", w.peersOn)
+			log.Printf("[%s] Online", n.p.ID)
 		}
+		// List peers currently available
+		log.Println("Online peers:", w.peersOn)
 	}
 }
 
