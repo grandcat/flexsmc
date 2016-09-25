@@ -58,3 +58,15 @@ func (w *peerWatcher) watch() {
 func (w *peerWatcher) Notifications() chan<- stateChange {
 	return w.notifies
 }
+
+func (w *peerWatcher) AvailablePeers() []*PeerInfo {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	nodes := make([]*PeerInfo, 0, len(w.peersOn))
+	for _, p := range w.peersOn {
+		nodes = append(nodes, p)
+	}
+
+	return nodes
+}

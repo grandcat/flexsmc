@@ -16,13 +16,13 @@ type Registry struct {
 	peers map[auth.PeerID]*PeerInfo
 	mu    sync.RWMutex
 
-	watcher *peerWatcher
+	Watcher *peerWatcher
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
 		peers:   make(map[auth.PeerID]*PeerInfo),
-		watcher: newPeerWatcher(),
+		Watcher: newPeerWatcher(),
 	}
 }
 
@@ -44,10 +44,7 @@ func (d *Registry) GetOrCreate(id auth.PeerID) *PeerInfo {
 	p, ok := d.peers[id]
 	d.mu.RUnlock()
 	if !ok {
-		p = &PeerInfo{
-			ID:            id,
-			stateNotifier: d.watcher.Notifications(),
-		}
+		p = newPeerInfo(id, d.Watcher.Notifications())
 		d.Add(p)
 	}
 	return p

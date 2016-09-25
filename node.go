@@ -11,6 +11,7 @@ import (
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
 	"github.com/grandcat/flexsmc/directory"
 	proto "github.com/grandcat/flexsmc/proto"
+	"github.com/grandcat/flexsmc/wiring"
 	auth "github.com/grandcat/srpc/authentication"
 	"github.com/grandcat/srpc/client"
 	"github.com/grandcat/srpc/pairing"
@@ -50,7 +51,7 @@ func (n *Node) Ping(ctx context.Context, in *proto.SMCInfo) (*proto.CmdResult, e
 	return nil, ErrPermDenied
 }
 
-func (n *Node) AwaitSMCCommands(in *proto.SMCInfo, stream proto.Gateway_AwaitSMCCommandsServer) error {
+func (n *Node) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error {
 	streamCtx := stream.Context()
 	a, _ := auth.FromAuthContext(streamCtx)
 	log.Println(">>Stream requested from:", a.ID)
@@ -62,11 +63,12 @@ func (n *Node) AwaitSMCCommands(in *proto.SMCInfo, stream proto.Gateway_AwaitSMC
 	}
 	p.Touch(a.Addr)
 
-	// Await commands for our requesting peer and send it to him.
-	// If there is no communication with this specific peer for a while,
+	// Await a C&C channel from the gateway. This means some work is waiting
+	// to be processed by this peer.
+	// In case of no communication with this specific peer for a while,
 	// we need to check whether it is still alive. Otherwise, this peer is
 	// shutdown and needs to register again for commands.
-	rx := p.SubscribeCmdChan()
+	gwChat := p.SubscribeCmdChan()
 	if err != nil {
 		return err
 	}
@@ -76,16 +78,13 @@ func (n *Node) AwaitSMCCommands(in *proto.SMCInfo, stream proto.Gateway_AwaitSMC
 	defer t.Stop()
 	for {
 		select {
-		// Incoming commands for TX
-		case m, ok := <-rx:
-			if !ok {
-				return fmt.Errorf("AwaitSMCCommands: chan closed externally")
-			}
-			cmd := m.(proto.SMCCmd)
-			log.Printf("M -> %s: %v", a.ID, m)
-			if err := stream.Send(&cmd); err != nil {
+		// GW wants to talk to this peer via the established connection
+		case ch := <-gwChat:
+			// Instruction and feedback loop during an active chat
+			if err := n.chatLoop(stream, ch); err != nil {
 				return err
 			}
+
 		// Periodic activity check
 		// We cannot fully rely on gRPC send a notification via the context. Especially
 		// for long lasting streams with few communication, it is recommend to
@@ -94,8 +93,9 @@ func (n *Node) AwaitSMCCommands(in *proto.SMCInfo, stream proto.Gateway_AwaitSMC
 			act := p.LastActivity().Seconds()
 			if act > directory.MaxActivityGap {
 				// Shutdown instruction channel as the peer is probably offline.
-				return fmt.Errorf("no activity for too long")
+				return fmt.Errorf("no ping activity for too long")
 			}
+
 		// Handling remote peer gracefully shutting down stream connection
 		case <-streamCtx.Done():
 			log.Printf("Conn to peer %s died unexpectedly", a.ID)
@@ -104,7 +104,35 @@ func (n *Node) AwaitSMCCommands(in *proto.SMCInfo, stream proto.Gateway_AwaitSMC
 		}
 	}
 
-	return nil
+}
+
+// Ping-ping chat between peer and gateway until one of them tears down the connection.
+func (n *Node) chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGateway) error {
+	streamCtx := stream.Context()
+	a, _ := auth.FromAuthContext(streamCtx)
+
+	fromGW := ch.GetInstructions()
+	toGW := ch.Feedback()
+	for {
+		cmd, more := <-fromGW
+		if !more {
+			return nil
+		}
+		// 1. Send instruction to waiting peer
+		log.Printf("GW -> %s: %v", a.ID, cmd)
+		if err := stream.Send(cmd); err != nil {
+			return err
+		}
+		// 2. Wait for response and forward to waiting GW
+		resp, err := stream.Recv()
+		if err != nil {
+			// Inform GW about loss of connection
+			toGW <- &proto.CmdResult{Status: proto.CmdResult_STREAM_ERR}
+			log.Printf("[%s] stream rcv aborted.", a.ID)
+			return err
+		}
+		toGW <- resp
+	}
 }
 
 func runGateway() {
@@ -136,8 +164,27 @@ func runGateway() {
 		}
 
 	}()
+	// XXX: send msg to peers
+	go func() {
+		time.Sleep(time.Second * 10)
+		log.Println(">>GW: try sending message to peer")
+		comm := wiring.NewPeerConnection(n.reg)
+		// n.reg.Watcher.AvailableNodes
+		// Declare message for transmission
+		m := proto.SMCCmd{
+			Type: proto.SMCCmd_PREPARE,
+			Payload: &proto.SMCCmd_Prepare{&proto.Prepare{
+				Participants: []*proto.Prepare_Participant{&proto.Prepare_Participant{Addr: "myAddr", Identity: "ident"}},
+			}},
+		}
+		// Submit to online peers
+		task, _ := comm.SendTask(context.Background(), n.reg.Watcher.AvailablePeers(), &m)
+		if res, ok := <-task.Result(); ok {
+			log.Println(">> GW: RESULT FROM PEER:", res)
+		}
+	}()
 
-	// Start serving (blocks...)
+	// Start serving (blocking)
 	n.Serve()
 }
 
@@ -221,8 +268,7 @@ func runPeer() {
 	time.Sleep(time.Millisecond * 250)
 
 	// Test2: receive stream of SMCCmds
-	myInfo := &proto.SMCInfo{Tcpport: 42424}
-	stream, err := c.AwaitSMCCommands(context.Background(), myInfo)
+	stream, err := c.AwaitSMCRound(context.Background())
 	if err != nil {
 		log.Printf("Could not receive GW's SMC cmds: %v", err)
 		return
@@ -240,6 +286,10 @@ func runPeer() {
 		case *proto.SMCCmd_Prepare:
 			log.Println(">> Participants:", cmd.Prepare.Participants)
 		}
+		// Send back response
+		time.Sleep(time.Second * 10)
+		log.Println(">> Send msg to GW now")
+		stream.Send(&proto.CmdResult{Msg: "nice, but I am stupid"})
 	}
 
 	n.TearDown()

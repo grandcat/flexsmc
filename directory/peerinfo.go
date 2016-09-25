@@ -1,7 +1,7 @@
 package directory
 
 import (
-	"fmt"
+	"context"
 	"log"
 	"net"
 	"sync"
@@ -48,9 +48,17 @@ type PeerInfo struct {
 	Caps string
 	// TODO: metrics about errors, peers' reliability, ...
 
-	// Comm interface for messages from GW -> peer
-	tx            chan interface{}
-	stateNotifier chan<- stateChange //< Needs external initialization
+	// Bi-directional communication requests
+	requestedSessions chan ChatWithGateway
+	stateNotifier     chan<- stateChange //< Needs external initialization
+}
+
+func newPeerInfo(id auth.PeerID, doNotify chan<- stateChange) *PeerInfo {
+	return &PeerInfo{
+		ID:                id,
+		requestedSessions: make(chan ChatWithGateway),
+		stateNotifier:     doNotify,
+	}
 }
 
 func (pi *PeerInfo) Touch(addr net.Addr) {
@@ -85,29 +93,15 @@ func (pi *PeerInfo) LastActivity() time.Duration {
 	return time.Since(pi.lastPing)
 }
 
-func (pi *PeerInfo) SubscribeCmdChan() <-chan interface{} {
+func (pi *PeerInfo) SubscribeCmdChan() <-chan ChatWithGateway {
 	pi.mu.Lock()
 	defer pi.mu.Unlock()
 	// We assume that the previous chan was closed via UnsubscribeCmdChan().
 	log.Printf("[%s] SubscribeCmdChan ", pi.ID)
-	if pi.tx == nil {
-		pi.tx = make(chan interface{}, 1)
-		log.Println("Create new comm chan directed to peer", pi.ID)
-	}
 	// Add peer to pool of available peers
 	pi.stateNotifier <- stateChange{avail: 2, p: pi}
 
-	// XXX: test sending some messages
-	// go func() {
-	// 	time.Sleep(time.Second * 2)
-	// 	for i := 2; i >= 0; i-- {
-	// 		prep := proto.SMCCmd_Prepare{&proto.Prepare{
-	// 			Participants: []*proto.Prepare_Participant{&proto.Prepare_Participant{Addr: "myAddr", Identity: "ident"}},
-	// 		}}
-	// 		d.BroadcastMsg([]auth.PeerID{"sn3.flexsmc.local", "sn414141.flexsmc.local"}, proto.SMCCmd{Type: proto.SMCCmd_Type(i), Payload: &prep})
-	// 	}
-	// }()
-	return pi.tx
+	return pi.requestedSessions
 }
 
 func (pi *PeerInfo) UnsubscribeCmdChan() {
@@ -123,15 +117,28 @@ func (pi *PeerInfo) UnsubscribeCmdChan() {
 	log.Println("Close comm chan to peer", pi.ID)
 }
 
-func (pi *PeerInfo) SendMsg(m interface{}) error {
+// RequestChat: channel container to communicate with this peer
+func (pi *PeerInfo) RequestChat(ctx context.Context) (ChatWithPeer, error) {
+	// TODO: handle context
+	chat := newTalker()
 	select {
-	case pi.tx <- m:
-		// No previous message in buffer. So we conclude that our previously queued message reached
-		// its destination peer.
-		return nil
-	default:
-		// Sender blocking (chan len = 1). A previously queued message is still waiting until
-		// a specified delivery deadline rejects this message.
-		return fmt.Errorf("delivery of last msg not succeeded yet (node temporarily offline?)")
+	case pi.requestedSessions <- chat:
+		return chat, nil
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
+
+// func (pi *PeerInfo) SendMsg(m interface{}) error {
+// 	select {
+// 	case pi.tx <- m:
+// 		// No previous message in buffer. So we conclude that our previously queued message reached
+// 		// its destination peer.
+// 		return nil
+// 	default:
+// 		// Sender blocking (chan len = 1). A previously queued message is still waiting until
+// 		// a specified delivery deadline rejects this message.
+// 		return fmt.Errorf("delivery of last msg not succeeded yet (node temporarily offline?)")
+// 	}
+// }

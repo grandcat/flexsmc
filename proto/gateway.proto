@@ -6,10 +6,13 @@ option java_outer_classname = "Gateway";
 
 package flexsmc;
 
+import "google/protobuf/timestamp.proto";
+
 // Interface exported by the gateway.
 service Gateway {
     rpc Ping(SMCInfo) returns (CmdResult) {}
-    rpc AwaitSMCCommands(SMCInfo) returns (stream SMCCmd) {}
+    // A peer can open multiple streams if it has enough capacities.
+    rpc AwaitSMCRound(stream CmdResult) returns (stream SMCCmd) {}
 }
 
 message SMCInfo {
@@ -63,7 +66,10 @@ message SMCTask {
     DataOrigin source     = 2;
     // (Pre)Selectors
     Aggregator aggregator = 4;
-    string signature      = 7;
+    string ticketSignature           = 7;
+
+    google.protobuf.Timestamp issued = 8;
+    string querySignature            = 9;
 }
 
 message Prepare {
@@ -75,11 +81,17 @@ message Prepare {
     SMCTask smcTask                   = 2;
 }
 
+message SessionPhase {
+
+}
+
 message CmdResult {
     enum Status {
         SUCCESS     = 0;
         UNKNOWN_CMD = 1;
         DENIED      = 2;
+        ABORTED     = 3;
+        STREAM_ERR  = 4;
     }
     Status status = 1;
     string msg    = 2;
