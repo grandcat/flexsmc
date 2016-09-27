@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sync"
 	"time"
 
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
 	proto "github.com/grandcat/flexsmc/proto"
+	"github.com/grandcat/flexsmc/smc"
 	"github.com/grandcat/srpc/client"
 	"github.com/grandcat/srpc/pairing"
 	"golang.org/x/net/context"
@@ -31,6 +33,10 @@ func (p *Peer) Init() {
 	if err := p.srpc.GetPeerCerts().LoadFromPath("peer1/"); err != nil {
 		fmt.Println(err)
 	}
+}
+
+func (p *Peer) RunStateMachine() {
+
 }
 
 func (p *Peer) Run() {
@@ -82,9 +88,12 @@ func (p *Peer) Run() {
 		return
 	}
 	c := proto.NewGatewayClient(cc)
+	var wg sync.WaitGroup
+	wg.Add(1)
 
 	// Test1: ping our gateway
 	go func() {
+		defer wg.Done()
 		for i := 0; i < 4; i++ {
 			ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
 			resp, err := c.Ping(ctx, &proto.SMCInfo{12345})
@@ -101,7 +110,7 @@ func (p *Peer) Run() {
 	//      internal DB.
 	time.Sleep(time.Millisecond * 250)
 
-	// Test2: receive stream of SMCCmds
+	// // Test2: receive stream of SMCCmds
 	stream, err := c.AwaitSMCRound(context.Background())
 	if err != nil {
 		log.Printf("Could not receive GW's SMC cmds: %v", err)
@@ -109,6 +118,7 @@ func (p *Peer) Run() {
 	}
 
 	cmdNum := 0
+	smcConn := smc.DefaultSMCSession()
 	for {
 		m, err := stream.Recv()
 		if err == io.EOF {
@@ -118,11 +128,14 @@ func (p *Peer) Run() {
 			log.Fatalf("%v.ListFeatures(_) = _, %v", c, err)
 		}
 		log.Printf(">> [%v] SMC Cmd: %v", time.Now(), m)
+		var resp *proto.CmdResult
 		switch cmd := m.Payload.(type) {
 		case *proto.SMCCmd_Prepare:
 			log.Println(">> Participants:", cmd.Prepare.Participants)
+			resp = smcConn.Prepare(cmd.Prepare)
 		case *proto.SMCCmd_Session:
 			log.Println(">> Session phase:", cmd.Session)
+			resp = <-smcConn.DoSession(cmd.Session)
 		}
 		// XXX: need a lot of time for session phase ;)
 		// if *certFile == "certs/cert_client3.pem" && cmdNum == 1 {
@@ -130,13 +143,25 @@ func (p *Peer) Run() {
 		// }
 		// Send back response
 		log.Println(">> Send msg to GW now")
-		stream.Send(&proto.CmdResult{
-			Status: proto.CmdResult_SUCCESS,
-			Msg:    "nice, but I am stupid",
-		})
+		stream.Send(resp)
 
 		cmdNum++
 	}
 
 	p.srpc.TearDown()
+	wg.Wait()
 }
+
+// gwInteraction interacts with the GW while it is connected to.
+type gwInteraction struct {
+	c proto.GatewayClient
+}
+
+// smcAdvisor redirects SMC jobs to a SMC backend and sends back the result.
+type smcAdvisor struct {
+	c proto.GatewayClient
+}
+
+// func (sa *smcAdvisor) Start() {
+// 	sa.c.AwaitSMCRound()
+// }
