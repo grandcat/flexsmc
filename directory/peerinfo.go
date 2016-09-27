@@ -120,7 +120,7 @@ func (pi *PeerInfo) UnsubscribeCmdChan() {
 // RequestChat: channel container to communicate with this peer
 func (pi *PeerInfo) RequestChat(ctx context.Context) (ChatWithPeer, error) {
 	// TODO: handle context
-	chat := newTalker()
+	chat := newTalker(pi)
 	select {
 	case pi.requestedSessions <- chat:
 		return chat, nil

@@ -4,40 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/grandcat/flexsmc/directory"
 	proto "github.com/grandcat/flexsmc/proto"
 )
-
-type TaskWatcher interface {
-	Abort()
-	Result() <-chan interface{}
-}
-
-type task struct {
-	feedback chan interface{}
-	// Task context and instructions
-	ctx     context.Context
-	targets []*directory.PeerInfo
-	smcCmd  *proto.SMCCmd
-}
-
-func newTask(ctx context.Context, targets []*directory.PeerInfo, cmd *proto.SMCCmd) *task {
-	return &task{
-		feedback: make(chan interface{}),
-		ctx:      ctx,
-		targets:  targets,
-		smcCmd:   cmd,
-	}
-}
-
-func (t *task) Abort() {
-	// TODO
-}
-
-func (t *task) Result() <-chan interface{} {
-	return t.feedback
-}
 
 type PeerConnection struct {
 	reg   *directory.Registry
@@ -58,7 +29,7 @@ func NewPeerConnection(r *directory.Registry) *PeerConnection {
 	return pc
 }
 
-func (pc *PeerConnection) SendTask(ctx context.Context, dest []*directory.PeerInfo, cmd *proto.SMCCmd) (TaskWatcher, error) {
+func (pc *PeerConnection) SubmitTask(ctx context.Context, dest []*directory.PeerInfo, cmd *proto.SMCCmd) (TaskWatcher, error) {
 	t := newTask(ctx, dest, cmd)
 	// Enqueue for worker pool
 	select {
@@ -71,29 +42,55 @@ func (pc *PeerConnection) SendTask(ctx context.Context, dest []*directory.PeerIn
 	return t, nil
 }
 
+func (pc *PeerConnection) RescheduleOpenTask() {
+	// TODO:
+	// Reuse an existing tasks with opened chats so we do not need to reopen them.
+	// This safes some time and resources.
+}
+
 func (pc *PeerConnection) taskWorker() {
 	for t := range pc.tasks {
-		fmt.Println("Incomming task:", t)
-
-		chats := make([]directory.ChatWithPeer, 0, len(t.targets))
-		for _, p := range t.targets {
-			// Initiate communication channel to each peer.
-			// If it takes too much time until the corresponding peer reacts on our
-			// talk request, we need to inform the originator of our task.
-			peerChat, err := p.RequestChat(context.Background())
-			if err != nil {
-				log.Printf("[%s] Talk request not handled fast enough. Aborting.", p.ID)
-				continue
-			}
-			chats = append(chats, peerChat)
-
-			peerChat.Instruct() <- t.smcCmd
-			// XXX: fetch response
-			response := <-peerChat.GetFeedback()
-			log.Println(">>Response from peer:", response)
-		}
-
-		// Now check all results
-
+		fmt.Println("Task starts:", t)
+		processTask(t)
+		fmt.Println("Task ends:", t)
 	}
+}
+
+func processTask(t *task) {
+	prepCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	err := t.openPeerChats(prepCtx)
+	if err != nil {
+		// Minimum 1 tchat failed. Abort early so GW can schedule the same task for a subset
+		// of the current target peers if applicable.
+		t.abort(err)
+		return
+	}
+	// Prepare phase with task
+	_, err = t.queryTargetsSync(prepCtx, t.smcCmd)
+	if err != nil {
+		t.abort(err)
+		return
+	}
+	// Trigger session and wait for final results
+	sp := &proto.SMCCmd{
+		State:   proto.SMCCmd_SESSION,
+		Payload: &proto.SMCCmd_Session{&proto.SessionPhase{}},
+	}
+	results, err := t.queryTargetsSync(t.ctx, sp)
+	// Send back results if there are any
+	// XXX: replace with direct routing of results to the client
+	for _, r := range results {
+		t.feedback <- r
+	}
+	if err != nil {
+		t.abort(err)
+		return
+	}
+	// Notify client that we are done here.
+	close(t.feedback)
+
+	// No more instructions from our side for the group of peers.
+	t.closeAllChats()
 }

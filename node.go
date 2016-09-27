@@ -64,10 +64,10 @@ func (n *Node) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error {
 	p.Touch(a.Addr)
 
 	// Await a C&C channel from the gateway. This means some work is waiting
-	// to be processed by this peer.
+	// for this peer.
 	// In case of no communication with this specific peer for a while,
 	// we need to check whether it is still alive. Otherwise, this peer is
-	// shutdown and needs to register again for commands.
+	// teared down and needs to register again prior to new tasks.
 	gwChat := p.SubscribeCmdChan()
 	if err != nil {
 		return err
@@ -78,12 +78,12 @@ func (n *Node) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error {
 	defer t.Stop()
 	for {
 		select {
-		// GW wants to talk to this peer via the established connection
+		// GW wants to talk to this peer via the established chat
 		case ch := <-gwChat:
-			// Instruction and feedback loop during an active chat
 			if err := n.chatLoop(stream, ch); err != nil {
 				return err
 			}
+			log.Printf("[%s] chat loop finished.", a.ID)
 
 		// Periodic activity check
 		// We cannot fully rely on gRPC send a notification via the context. Especially
@@ -116,6 +116,7 @@ func (n *Node) chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.C
 	for {
 		cmd, more := <-fromGW
 		if !more {
+			// TODO: notify peer about finished SMC session (or just kill stream?)
 			return nil
 		}
 		// 1. Send instruction to waiting peer
@@ -172,16 +173,25 @@ func runGateway() {
 		// n.reg.Watcher.AvailableNodes
 		// Declare message for transmission
 		m := proto.SMCCmd{
-			Type: proto.SMCCmd_PREPARE,
+			State: proto.SMCCmd_PREPARE,
 			Payload: &proto.SMCCmd_Prepare{&proto.Prepare{
 				Participants: []*proto.Prepare_Participant{&proto.Prepare_Participant{Addr: "myAddr", Identity: "ident"}},
 			}},
 		}
 		// Submit to online peers
-		task, _ := comm.SendTask(context.Background(), n.reg.Watcher.AvailablePeers(), &m)
-		if res, ok := <-task.Result(); ok {
+		taskTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
+		defer cancel()
+		task, _ := comm.SubmitTask(taskTimeout, n.reg.Watcher.AvailablePeers(), &m)
+
+		for {
+			res, ok := <-task.Result()
+			if !ok {
+				log.Println(">> GW: feedback channel closed:", task.Err())
+				break
+			}
 			log.Println(">> GW: RESULT FROM PEER:", res)
 		}
+
 	}()
 
 	// Start serving (blocking)
@@ -273,6 +283,8 @@ func runPeer() {
 		log.Printf("Could not receive GW's SMC cmds: %v", err)
 		return
 	}
+
+	cmdNum := 0
 	for {
 		m, err := stream.Recv()
 		if err == io.EOF {
@@ -285,11 +297,21 @@ func runPeer() {
 		switch cmd := m.Payload.(type) {
 		case *proto.SMCCmd_Prepare:
 			log.Println(">> Participants:", cmd.Prepare.Participants)
+		case *proto.SMCCmd_Session:
+			log.Println(">> Session phase:", cmd.Session)
+		}
+		// XXX: need a lot of time for session phase ;)
+		if *certFile == "certs/cert_client3.pem" && cmdNum == 1 {
+			time.Sleep(time.Second * 10)
 		}
 		// Send back response
-		time.Sleep(time.Second * 10)
 		log.Println(">> Send msg to GW now")
-		stream.Send(&proto.CmdResult{Msg: "nice, but I am stupid"})
+		stream.Send(&proto.CmdResult{
+			Status: proto.CmdResult_SUCCESS,
+			Msg:    "nice, but I am stupid",
+		})
+
+		cmdNum++
 	}
 
 	n.TearDown()

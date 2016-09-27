@@ -21,20 +21,18 @@ message SMCInfo {
 }
 
 message SMCCmd {
-    // Categories:
-    // * SMCInstruction (Prepare, Start)
-    // * (ACK)
-    enum Type {
+    uint64 sessionID    = 1;
+    enum Phase {
         PREPARE = 0;
         SESSION = 1;
         // ...
         ABORT   = 127;
     }
-    Type type           = 1;
-    uint64 sessionID    = 2;
+    Phase state         = 2;
     // Payload packet
     oneof payload {
         Prepare prepare = 3;
+        SessionPhase session = 4;
     }
 }
 
@@ -91,7 +89,8 @@ message CmdResult {
         UNKNOWN_CMD = 1;
         DENIED      = 2;
         ABORTED     = 3;
-        STREAM_ERR  = 4;
+        // Communication related errors
+        STREAM_ERR  = 128;
     }
     Status status = 1;
     string msg    = 2;
