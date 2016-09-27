@@ -80,7 +80,7 @@ func (n *Node) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error {
 		select {
 		// GW wants to talk to this peer via the established chat
 		case ch := <-gwChat:
-			if err := n.chatLoop(stream, ch); err != nil {
+			if err := chatLoop(stream, ch); err != nil {
 				return err
 			}
 			log.Printf("[%s] chat loop finished.", a.ID)
@@ -107,7 +107,7 @@ func (n *Node) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error {
 }
 
 // Ping-ping chat between peer and gateway until one of them tears down the connection.
-func (n *Node) chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGateway) error {
+func chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGateway) error {
 	streamCtx := stream.Context()
 	a, _ := auth.FromAuthContext(streamCtx)
 
@@ -132,6 +132,7 @@ func (n *Node) chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.C
 			log.Printf("[%s] stream rcv aborted.", a.ID)
 			return err
 		}
+		ch.SetPeerMetadata(resp)
 		toGW <- resp
 	}
 }
@@ -301,9 +302,9 @@ func runPeer() {
 			log.Println(">> Session phase:", cmd.Session)
 		}
 		// XXX: need a lot of time for session phase ;)
-		if *certFile == "certs/cert_client3.pem" && cmdNum == 1 {
-			time.Sleep(time.Second * 10)
-		}
+		// if *certFile == "certs/cert_client3.pem" && cmdNum == 1 {
+		// 	time.Sleep(time.Second * 10)
+		// }
 		// Send back response
 		log.Println(">> Send msg to GW now")
 		stream.Send(&proto.CmdResult{

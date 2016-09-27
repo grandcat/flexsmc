@@ -14,11 +14,9 @@ type ChatWithPeer interface {
 type ChatWithGateway interface {
 	GetInstructions() <-chan *proto.SMCCmd
 	Feedback() chan<- *proto.CmdResult
-}
-
-type PeerCmdResult struct {
-	Peer *PeerInfo
-	Resp *proto.CmdResult
+	// Metadata handling
+	SetPeerMetadata(r *proto.CmdResult)
+	SetMetadata(r *proto.CmdResult, key, value string)
 }
 
 // 0 = Blocking channel:
@@ -71,4 +69,18 @@ func (t smcChat) GetInstructions() <-chan *proto.SMCCmd {
 
 func (t smcChat) Feedback() chan<- *proto.CmdResult {
 	return t.from
+}
+
+func (t smcChat) SetPeerMetadata(r *proto.CmdResult) {
+	if r.Metadata == nil {
+		r.Metadata = make(map[string]string)
+	}
+	r.Metadata["peerID"] = string(t.peer.ID)
+}
+
+func (t smcChat) SetMetadata(r *proto.CmdResult, key, value string) {
+	if r.Metadata == nil {
+		r.Metadata = make(map[string]string)
+	}
+	r.Metadata[key] = value
 }

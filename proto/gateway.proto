@@ -94,4 +94,9 @@ message CmdResult {
     }
     Status status = 1;
     string msg    = 2;
+    map<string, string> metadata = 3;
+}
+
+enum MetadataKey {
+    PEERID = 0;
 }
