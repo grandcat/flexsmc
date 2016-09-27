@@ -67,7 +67,7 @@ func (n *Node) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error {
 	// for this peer.
 	// In case of no communication with this specific peer for a while,
 	// we need to check whether it is still alive. Otherwise, this peer is
-	// teared down and needs to register again prior to new tasks.
+	// teared down and needs to register again prior to new jobs.
 	gwChat := p.SubscribeCmdChan()
 	if err != nil {
 		return err
@@ -180,14 +180,14 @@ func runGateway() {
 			}},
 		}
 		// Submit to online peers
-		taskTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
+		jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
 		defer cancel()
-		task, _ := comm.SubmitTask(taskTimeout, n.reg.Watcher.AvailablePeers(), &m)
+		job, _ := comm.SubmitJob(jobTimeout, n.reg.Watcher.AvailablePeers(), &m)
 
 		for {
-			res, ok := <-task.Result()
+			res, ok := <-job.Result()
 			if !ok {
-				log.Println(">> GW: feedback channel closed:", task.Err())
+				log.Println(">> GW: feedback channel closed:", job.Err())
 				break
 			}
 			log.Println(">> GW: RESULT FROM PEER:", res)

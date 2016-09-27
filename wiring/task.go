@@ -11,27 +11,27 @@ import (
 	auth "github.com/grandcat/srpc/authentication"
 )
 
-type TaskWatcher interface {
+type JobWatcher interface {
 	Result() <-chan *proto.CmdResult
 	// Err is non-nil if a critical error occurred during operation.
 	// It should be called first when Result() chan was called from our side.
 	Err() *PeerError
 }
 
-type task struct {
+type job struct {
 	feedback chan *proto.CmdResult
 	lastErr  *PeerError
 	mu       sync.Mutex
-	// Static task context and instructions
+	// Static job context and instructions
 	ctx     context.Context
 	targets []*directory.PeerInfo
 	smcCmd  *proto.SMCCmd
-	// Context for worker processing this task
+	// Context for worker processing this job
 	chats map[auth.PeerID]directory.ChatWithPeer
 }
 
-func newTask(ctx context.Context, targets []*directory.PeerInfo, cmd *proto.SMCCmd) *task {
-	return &task{
+func newJob(ctx context.Context, targets []*directory.PeerInfo, cmd *proto.SMCCmd) *job {
+	return &job{
 		feedback: make(chan *proto.CmdResult),
 		ctx:      ctx,
 		targets:  targets,
@@ -39,31 +39,31 @@ func newTask(ctx context.Context, targets []*directory.PeerInfo, cmd *proto.SMCC
 	}
 }
 
-func (t *task) Result() <-chan *proto.CmdResult {
-	return t.feedback
+func (j *job) Result() <-chan *proto.CmdResult {
+	return j.feedback
 }
 
-func (t *task) Err() *PeerError {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.lastErr
+func (j *job) Err() *PeerError {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.lastErr
 }
 
 // openPeerChats initiates a bi-directional communication channel to each peer.
 // If it takes too much time until the corresponding peer reacts on our
-// talk request, we need to inform the originator of this task.
-func (t *task) openPeerChats(ctx context.Context) *PeerError {
-	t.chats = make(map[auth.PeerID]directory.ChatWithPeer, len(t.targets))
+// talk request, we need to inform the originator of this job.
+func (j *job) openPeerChats(ctx context.Context) *PeerError {
+	j.chats = make(map[auth.PeerID]directory.ChatWithPeer, len(j.targets))
 	var errPeers []*directory.PeerInfo
 
-	for _, p := range t.targets {
+	for _, p := range j.targets {
 		pch, err := p.RequestChat(ctx)
 		if err != nil {
 			errPeers = append(errPeers, p)
 			log.Printf("[%s] Talk request not handled fast enough. Aborting.", p.ID)
 			continue
 		}
-		t.chats[p.ID] = pch
+		j.chats[p.ID] = pch
 	}
 
 	if len(errPeers) > 0 {
@@ -73,42 +73,42 @@ func (t *task) openPeerChats(ctx context.Context) *PeerError {
 }
 
 // removePeerChat deletes entry from map of active chats.
-func (t *task) removePeerChats(peers []*directory.PeerInfo) {
+func (j *job) removePeerChats(peers []*directory.PeerInfo) {
 	for _, p := range peers {
-		delete(t.chats, p.ID)
+		delete(j.chats, p.ID)
 	}
 }
 
-func (t *task) closeAllChats() {
-	for _, ch := range t.chats {
+func (j *job) closeAllChats() {
+	for _, ch := range j.chats {
 		ch.Close()
 	}
-	t.chats = nil
+	j.chats = nil
 }
 
 var errCtxOrStreamFailure = errors.New("ctx timeout or stream failure")
 
-func (t *task) queryTargetsSync(ctx context.Context, cmd *proto.SMCCmd) ([]*proto.CmdResult, *PeerError) {
-	// First, disseminate the task to all peers.
+func (j *job) queryTargetsSync(ctx context.Context, cmd *proto.SMCCmd) ([]*proto.CmdResult, *PeerError) {
+	// First, disseminate the job to all peers.
 	// Then, collect all results, but expect the results to be there until timeout occurs.
 
 	// Send
-	for _, pch := range t.chats {
+	for _, pch := range j.chats {
 		pch.Instruct() <- cmd
 	}
 	// Receive
 	// Each peer delivers its response independently from each other. If one peer blocks,
 	// there is still the result of all other peers after the timeout occurs.
 	var errPeers []*directory.PeerInfo
-	resps := make([]*proto.CmdResult, 0, len(t.chats))
-	for _, pch := range t.chats {
+	resps := make([]*proto.CmdResult, 0, len(j.chats))
+	for _, pch := range j.chats {
 		resp, err := pullRespUntilDone(ctx, pch.GetFeedback())
 		switch {
 		case err != nil:
 			fallthrough
 		case resp.Status >= proto.CmdResult_STREAM_ERR:
 			errPeers = append(errPeers, pch.Peer())
-			log.Printf("[%s] Task communication failed: %v", pch.Peer().ID, err)
+			log.Printf("[%s] job communication failed: %v", pch.Peer().ID, err)
 			pch.Close()
 			continue
 		}
@@ -118,20 +118,20 @@ func (t *task) queryTargetsSync(ctx context.Context, cmd *proto.SMCCmd) ([]*prot
 
 	var err *PeerError
 	if len(errPeers) > 0 {
-		t.removePeerChats(errPeers)
+		j.removePeerChats(errPeers)
 		err = NewPeerErr(errCtxOrStreamFailure, errPeers)
 	}
 	return resps, err
 }
 
-func (t *task) abort(e *PeerError) {
-	t.mu.Lock()
-	t.lastErr = e
-	t.mu.Unlock()
-	// Notify client (task originator) about error
-	close(t.feedback)
+func (j *job) abort(e *PeerError) {
+	j.mu.Lock()
+	j.lastErr = e
+	j.mu.Unlock()
+	// Notify client (job originator) about error
+	close(j.feedback)
 
-	t.closeAllChats()
+	j.closeAllChats()
 }
 
 var ErrEmptyChannel = errors.New("input channel is empty")

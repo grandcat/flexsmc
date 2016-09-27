@@ -12,13 +12,13 @@ import (
 
 type PeerConnection struct {
 	reg   *directory.Registry
-	tasks chan *task
+	tasks chan *job
 }
 
 func NewPeerConnection(r *directory.Registry) *PeerConnection {
 	pc := &PeerConnection{
 		reg:   r,
-		tasks: make(chan *task, 4),
+		tasks: make(chan *job, 4),
 	}
 	// Spawn some workers for communication with peers
 	go pc.taskWorker()
@@ -29,8 +29,8 @@ func NewPeerConnection(r *directory.Registry) *PeerConnection {
 	return pc
 }
 
-func (pc *PeerConnection) SubmitTask(ctx context.Context, dest []*directory.PeerInfo, cmd *proto.SMCCmd) (TaskWatcher, error) {
-	t := newTask(ctx, dest, cmd)
+func (pc *PeerConnection) SubmitJob(ctx context.Context, dest []*directory.PeerInfo, cmd *proto.SMCCmd) (JobWatcher, error) {
+	t := newJob(ctx, dest, cmd)
 	// Enqueue for worker pool
 	select {
 	case pc.tasks <- t:
@@ -56,7 +56,7 @@ func (pc *PeerConnection) taskWorker() {
 	}
 }
 
-func processTask(t *task) {
+func processTask(t *job) {
 	prepCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
