@@ -118,7 +118,8 @@ func (p *Peer) Run() {
 	}
 
 	cmdNum := 0
-	smcConn := smc.DefaultSMCSession()
+	smcConn := smc.DefaultSMCConnector
+	smcSess, _ := smcConn.Attach(stream.Context(), 0)
 	for {
 		m, err := stream.Recv()
 		if err == io.EOF {
@@ -132,10 +133,10 @@ func (p *Peer) Run() {
 		switch cmd := m.Payload.(type) {
 		case *proto.SMCCmd_Prepare:
 			log.Println(">> Participants:", cmd.Prepare.Participants)
-			resp = smcConn.Prepare(cmd.Prepare)
+			resp = <-smcSess.Prepare(cmd.Prepare)
 		case *proto.SMCCmd_Session:
 			log.Println(">> Session phase:", cmd.Session)
-			resp = <-smcConn.DoSession(cmd.Session)
+			resp = <-smcSess.DoSession(cmd.Session)
 		}
 		// XXX: need a lot of time for session phase ;)
 		// if *certFile == "certs/cert_client3.pem" && cmdNum == 1 {
