@@ -7,14 +7,14 @@ import (
 	"golang.org/x/net/context"
 )
 
-// Connector opens a Session with a SMC backend to track its computation
-// result.
+// Connector opens a Session with a SMC backend to control and track its computation.
 type Connector interface {
 	// Attach to SMC backend and do initialization if necessary.
-	Attach(ctx context.Context, id int) (Session, error)
+	Attach(ctx context.Context, id uint64) (Session, error)
 }
 
 type Session interface {
+	ID() uint64
 	// Prepare phase
 	Prepare(info *proto.Prepare) <-chan *proto.CmdResult
 	// DoSession fires the current session and closes the channel
@@ -26,20 +26,24 @@ type Session interface {
 
 var DefaultSMCConnector = newSMCConnector()
 
+// Mock to demonstrate the API
+
 type smcConnectorMock struct{}
 
 func newSMCConnector() Connector {
 	return &smcConnectorMock{}
 }
 
-func (con *smcConnectorMock) Attach(ctx context.Context, id int) (Session, error) {
-	return &smcSessionMock{}, nil
+func (con *smcConnectorMock) Attach(ctx context.Context, id uint64) (Session, error) {
+	return &smcSessionMock{id: id}, nil
 }
 
-type smcSessionMock struct{}
+type smcSessionMock struct {
+	id uint64
+}
 
-func (m *smcSessionMock) Attach(ctx context.Context, id int) error {
-	return nil
+func (m *smcSessionMock) ID() uint64 {
+	return m.id
 }
 
 func (m *smcSessionMock) Prepare(info *proto.Prepare) <-chan *proto.CmdResult {

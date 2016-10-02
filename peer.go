@@ -16,16 +16,23 @@ import (
 )
 
 type Peer struct {
-	srpc *client.Client
-	opts PeerOptions
+	srpc    *client.Client
+	smcConn smc.Connector
+	opts    PeerOptions
 }
 
 func NewPeer(opts PeerOptions) *Peer {
 	srpcOpts := append(opts.SRpcOpts, client.TLSKeyFile(*certFile, *keyFile))
 
+	smcConn := opts.smcBackend
+	if smcConn == nil {
+		smcConn = smc.DefaultSMCConnector
+	}
+
 	return &Peer{
-		srpc: client.NewClient(srpcOpts...),
-		opts: opts,
+		srpc:    client.NewClient(srpcOpts...),
+		smcConn: smcConn,
+		opts:    opts,
 	}
 }
 
@@ -89,7 +96,7 @@ func (p *Peer) Run() {
 	}
 	c := proto.NewGatewayClient(cc)
 	var wg sync.WaitGroup
-	wg.Add(1)
+	// wg.Add(1)
 
 	// Test1: ping our gateway
 	go func() {
@@ -110,59 +117,89 @@ func (p *Peer) Run() {
 	//      internal DB.
 	time.Sleep(time.Millisecond * 250)
 
-	// // Test2: receive stream of SMCCmds
-	stream, err := c.AwaitSMCRound(context.Background())
+	// Test2: receive stream of SMCCmds
+	advisor := smcAdvisor{
+		ctx:     context.Background(),
+		gwConn:  c,
+		smcConn: p.smcConn,
+		wg:      &wg,
+	}
+	// SpawnListener ends at the moment when finishing a SMC session.
+	// Need to respawn on time.
+	advisor.SpawnListener()
+
+	wg.Wait()
+	p.srpc.TearDown()
+}
+
+// smcAdvisor redirects SMC jobs to a SMC backend and sends back the result.
+type smcAdvisor struct {
+	ctx     context.Context
+	gwConn  proto.GatewayClient
+	smcConn smc.Connector
+	wg      *sync.WaitGroup
+}
+
+func (s *smcAdvisor) SpawnListener() error {
+	stream, err := s.gwConn.AwaitSMCRound(s.ctx)
 	if err != nil {
-		log.Printf("Could not receive GW's SMC cmds: %v", err)
-		return
+		log.Printf("Could not receive SMC cmds: %v", err)
+		return err
 	}
 
-	cmdNum := 0
-	smcConn := smc.DefaultSMCConnector
-	smcSess, _ := smcConn.Attach(stream.Context(), 0)
-	for {
-		m, err := stream.Recv()
+	s.wg.Add(1)
+	go s.smc(stream)
+	log.Printf("Spawned new SMC listener routine to GW")
+
+	return nil
+}
+
+func (s *smcAdvisor) smc(stream proto.Gateway_AwaitSMCRoundClient) {
+	defer s.wg.Done()
+
+	var smcSess smc.Session
+	moreCmds := true
+	for moreCmds {
+		in, err := stream.Recv()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			log.Fatalf("%v.ListFeatures(_) = _, %v", c, err)
+			log.Fatalf("%v.ListFeatures(_) = _, %v", s.gwConn, err)
+			break
 		}
-		log.Printf(">> [%v] SMC Cmd: %v", time.Now(), m)
+		log.Printf(">> [%v] SMC Cmd: %v", time.Now(), in)
+
+		// Try allocating SMC session on first command
+		if smcSess == nil {
+			var smcErr error
+			smcSess, smcErr = s.smcConn.Attach(stream.Context(), in.SessionID)
+			if smcErr != nil {
+				stream.Send(&proto.CmdResult{Status: proto.CmdResult_DENIED, Msg: smcErr.Error()})
+				stream.CloseSend()
+				break
+			}
+		}
+		// Verify that session did not change
+		if in.SessionID != smcSess.ID() {
+			stream.Send(&proto.CmdResult{Status: proto.CmdResult_DENIED, Msg: "session change not allowed here"})
+			stream.CloseSend()
+			break
+		}
+		// Route cmd to SMC provider
 		var resp *proto.CmdResult
-		switch cmd := m.Payload.(type) {
+		switch cmd := in.Payload.(type) {
 		case *proto.SMCCmd_Prepare:
 			log.Println(">> Participants:", cmd.Prepare.Participants)
 			resp = <-smcSess.Prepare(cmd.Prepare)
 		case *proto.SMCCmd_Session:
 			log.Println(">> Session phase:", cmd.Session)
 			resp = <-smcSess.DoSession(cmd.Session)
+			moreCmds = false
 		}
-		// XXX: need a lot of time for session phase ;)
-		// if *certFile == "certs/cert_client3.pem" && cmdNum == 1 {
-		// 	time.Sleep(time.Second * 10)
-		// }
 		// Send back response
 		log.Println(">> Send msg to GW now")
 		stream.Send(resp)
-
-		cmdNum++
 	}
 
-	p.srpc.TearDown()
-	wg.Wait()
 }
-
-// gwInteraction interacts with the GW while it is connected to.
-type gwInteraction struct {
-	c proto.GatewayClient
-}
-
-// smcAdvisor redirects SMC jobs to a SMC backend and sends back the result.
-type smcAdvisor struct {
-	c proto.GatewayClient
-}
-
-// func (sa *smcAdvisor) Start() {
-// 	sa.c.AwaitSMCRound()
-// }

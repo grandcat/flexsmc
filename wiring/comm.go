@@ -11,18 +11,18 @@ import (
 )
 
 type PeerConnection struct {
-	reg   *directory.Registry
-	tasks chan *job
+	reg  *directory.Registry
+	jobs chan *job
 }
 
 func NewPeerConnection(r *directory.Registry) *PeerConnection {
 	pc := &PeerConnection{
-		reg:   r,
-		tasks: make(chan *job, 4),
+		reg:  r,
+		jobs: make(chan *job, 4),
 	}
 	// Spawn some workers for communication with peers
-	go pc.taskWorker()
-	go pc.taskWorker()
+	go pc.jobWorker()
+	go pc.jobWorker()
 
 	log.Println("Starting workers for managing peer connections")
 
@@ -33,7 +33,7 @@ func (pc *PeerConnection) SubmitJob(ctx context.Context, dest []*directory.PeerI
 	t := newJob(ctx, dest, cmd)
 	// Enqueue for worker pool
 	select {
-	case pc.tasks <- t:
+	case pc.jobs <- t:
 		// Everything fine. Soon, an available worker should start processing the task.
 	default:
 		return nil, fmt.Errorf("too many tasks running")
@@ -48,15 +48,15 @@ func (pc *PeerConnection) RescheduleOpenTask() {
 	// This safes some time and resources.
 }
 
-func (pc *PeerConnection) taskWorker() {
-	for t := range pc.tasks {
+func (pc *PeerConnection) jobWorker() {
+	for t := range pc.jobs {
 		fmt.Println("Task starts:", t)
-		processTask(t)
+		processJob(t)
 		fmt.Println("Task ends:", t)
 	}
 }
 
-func processTask(t *job) {
+func processJob(t *job) {
 	prepCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 

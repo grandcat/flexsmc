@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/grandcat/flexsmc/directory"
+	"github.com/grandcat/flexsmc/smc"
 	"github.com/grandcat/srpc/client"
 	"github.com/grandcat/srpc/server"
 )
@@ -22,6 +23,7 @@ type GWOptions struct {
 }
 
 type PeerOptions struct {
-	SRpcOpts []client.Option
+	smcBackend smc.Connector
+	SRpcOpts   []client.Option
 	Options
 }

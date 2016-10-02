@@ -94,6 +94,7 @@ message CmdResult {
     }
     Status status = 1;
     string msg    = 2;
+    // Partly filled on receiver side (e.g. peer ID)
     map<string, string> metadata = 3;
 }
 
