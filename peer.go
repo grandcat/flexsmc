@@ -159,18 +159,19 @@ func (s *smcAdvisor) smc(stream proto.Gateway_AwaitSMCRoundClient) {
 
 	var smcSess smc.Session
 	moreCmds := true
+
 	for moreCmds {
 		in, err := stream.Recv()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			log.Fatalf("%v.ListFeatures(_) = _, %v", s.gwConn, err)
+			log.Printf("%v.ListFeatures(_) = _, %v", s.gwConn, err)
 			break
 		}
 		log.Printf(">> [%v] SMC Cmd: %v", time.Now(), in)
 
-		// Try allocating SMC session on first command
+		// Try allocating SMC session on first use
 		if smcSess == nil {
 			var smcErr error
 			smcSess, smcErr = s.smcConn.Attach(stream.Context(), in.SessionID)
@@ -180,26 +181,13 @@ func (s *smcAdvisor) smc(stream proto.Gateway_AwaitSMCRoundClient) {
 				break
 			}
 		}
-		// Verify that session did not change
-		if in.SessionID != smcSess.ID() {
-			stream.Send(&proto.CmdResult{Status: proto.CmdResult_DENIED, Msg: "session change not allowed here"})
-			stream.CloseSend()
-			break
-		}
-		// Route cmd to SMC provider
-		var resp *proto.CmdResult
-		switch cmd := in.Payload.(type) {
-		case *proto.SMCCmd_Prepare:
-			log.Println(">> Participants:", cmd.Prepare.Participants)
-			resp = <-smcSess.Prepare(cmd.Prepare)
-		case *proto.SMCCmd_Session:
-			log.Println(">> Session phase:", cmd.Session)
-			resp = <-smcSess.DoSession(cmd.Session)
-			moreCmds = false
-		}
+		// Trigger state machine in SMC backend and wait for result
+		var resp <-chan *proto.CmdResult
+		resp, moreCmds = smcSess.NextCmd(in)
 		// Send back response
-		log.Println(">> Send msg to GW now")
-		stream.Send(resp)
+		m := <-resp
+		log.Println(">> Reply to GW now")
+		stream.Send(m)
 	}
 
 }
