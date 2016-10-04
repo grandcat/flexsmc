@@ -23,11 +23,12 @@ message SMCInfo {
 message SMCCmd {
     uint64 sessionID    = 1;
     enum Phase {
-        INIT    = 0;
-        PREPARE = 1;
-        SESSION = 2;
+        INIT     = 0;
+        PREPARE  = 1;
+        SESSION  = 2;
         // ...
-        ABORT   = 127;
+        FINISH = 126;
+        ABORT    = 127;
     }
     Phase state         = 2;
     // Payload packet

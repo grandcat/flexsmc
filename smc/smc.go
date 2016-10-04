@@ -11,13 +11,22 @@ import (
 
 // Connector opens a Session with a SMC backend to control and track its computation.
 type Connector interface {
-	// Attach to SMC backend and do initialization if necessary.
-	Attach(ctx context.Context, id uint64) (Session, error)
+	// RequestSession blocks until resources allow for a new Session.
+	// The context can abort an ongoing request. This will cause an error.
+	RequestSession(ctx context.Context) (Session, error)
 }
 
 type Session interface {
+	Init(ctx context.Context, id uint64)
+	// ID of the current session.
 	ID() uint64
-	NextCmd(in *proto.SMCCmd) (out <-chan *proto.CmdResult, more bool)
+	// NextCmd evaluates the input command, forwards it to the SMC backend and sends back
+	// the result of the command evaluation.
+	// It blocks until the request is processed or the context is done.
+	NextCmd(in *proto.SMCCmd) (out *proto.CmdResult, more bool)
+	// TearDown finishes a session and frees occupied resources. This should be called
+	// if the originator is not interested anymore to keep the SMC reservation alive.
+	TearDown()
 	// Err returns a non-nil if an error occurred during any phase.
 	Err() error
 }
@@ -31,30 +40,65 @@ var (
 
 // Mock to demonstrate the API
 
-type smcConnectorMock struct{}
+const ParallelSessions int = 2
 
-func newSMCConnector() Connector {
-	return &smcConnectorMock{}
+type smcConnectorMock struct {
+	readyWorkers chan struct{}
 }
 
-func (con *smcConnectorMock) Attach(ctx context.Context, id uint64) (Session, error) {
-	return &smcSessionMock{id: id}, nil
+func newSMCConnector() Connector {
+	c := &smcConnectorMock{
+		readyWorkers: make(chan struct{}, ParallelSessions),
+	}
+	// Initially fill in amount of sessions our resources are enough for.
+	for i := 0; i < ParallelSessions; i++ {
+		c.readyWorkers <- struct{}{}
+	}
+
+	return c
+}
+
+func (con *smcConnectorMock) RequestSession(ctx context.Context) (Session, error) {
+	select {
+	case <-con.readyWorkers:
+		// We have some capacities to serve a new SMC session.
+		return &smcSessionMock{
+			done: con.readyWorkers,
+		}, nil
+
+	case <-ctx.Done():
+		// Abort due to context.
+		return nil, ctx.Err()
+	}
 }
 
 type smcSessionMock struct {
-	id    uint64
-	phase proto.SMCCmd_Phase
+	ctx context.Context
+	id  uint64
+	// For returning our resources, send struct{}{}.
+	done chan<- struct{}
+
+	// XXX: protect phase with mutex? doPrepare and doSession run async.
+	phase      proto.SMCCmd_Phase
+	tearedDown bool
+}
+
+func (s *smcSessionMock) Init(ctx context.Context, id uint64) {
+	s.ctx = ctx
+	s.id = id
 }
 
 func (s *smcSessionMock) ID() uint64 {
 	return s.id
 }
 
-func (s *smcSessionMock) NextCmd(in *proto.SMCCmd) (out <-chan *proto.CmdResult, more bool) {
+func (s *smcSessionMock) NextCmd(in *proto.SMCCmd) (out *proto.CmdResult, more bool) {
+	defer s.condTearDown()
 	more = true
 
 	if err := s.validateSession(in); err != nil {
 		out, more = sendError(errSessionID)
+		// SMCCmd_ABORT is irreversible. Consequently, the session is teared down.
 		s.phase = proto.SMCCmd_ABORT
 		return
 	}
@@ -63,14 +107,14 @@ func (s *smcSessionMock) NextCmd(in *proto.SMCCmd) (out <-chan *proto.CmdResult,
 	case *proto.SMCCmd_Prepare:
 		if s.allowPhaseTransition(proto.SMCCmd_PREPARE) {
 			log.Println(">> Participants:", cmd.Prepare.Participants)
-			out = s.DoPrepare(cmd.Prepare)
+			out = s.doPrepare(cmd.Prepare)
 			more = true
 		}
 
 	case *proto.SMCCmd_Session:
 		if s.allowPhaseTransition(proto.SMCCmd_SESSION) {
 			log.Println(">> Session phase:", cmd.Session)
-			out = s.DoSession(cmd.Session)
+			out = s.doSession(cmd.Session)
 			more = false
 		}
 
@@ -85,39 +129,47 @@ func (s *smcSessionMock) NextCmd(in *proto.SMCCmd) (out <-chan *proto.CmdResult,
 	return
 }
 
-func (s *smcSessionMock) DoPrepare(info *proto.Prepare) <-chan *proto.CmdResult {
-	resCh := make(chan *proto.CmdResult)
-	go func() {
-		res := &proto.CmdResult{
-			Status: proto.CmdResult_SUCCESS,
-			Msg:    "->proto.Prepare: nice, but I am stupid",
-		}
-		// We're doing hard work :)
-		time.Sleep(time.Second * 1)
-		resCh <- res
-		// Only close on error
-		// close(resCh)
-	}()
+func (s *smcSessionMock) doPrepare(info *proto.Prepare) *proto.CmdResult {
+	res := &proto.CmdResult{
+		Status: proto.CmdResult_SUCCESS,
+		Msg:    "->proto.Prepare: nice, but I am stupid",
+	}
+	// We're doing hard work :)
+	time.Sleep(time.Second * 1)
 
-	return resCh
+	return res
 }
 
-func (s *smcSessionMock) DoSession(info *proto.SessionPhase) <-chan *proto.CmdResult {
-	// Update current phase
-	s.phase = proto.SMCCmd_SESSION
+func (s *smcSessionMock) doSession(info *proto.SessionPhase) *proto.CmdResult {
+	res := &proto.CmdResult{
+		Status: proto.CmdResult_SUCCESS,
+		Msg:    "->proto.Session: nice, but I am stupid",
+	}
+	// We're doing hard work :)
+	time.Sleep(time.Second * 1)
 
-	resCh := make(chan *proto.CmdResult)
-	go func() {
-		res := &proto.CmdResult{
-			Status: proto.CmdResult_SUCCESS,
-			Msg:    "->proto.SessionPhase: nice, but I am stupid",
-		}
-		// We're doing hard work :)
-		time.Sleep(time.Second * 1)
-		resCh <- res
-	}()
+	// Already tear down here to give the communication layer a chance bringing up
+	// another SMC quickly. By overlapping the sessions a bit, processing a batch
+	// of SMC jobs should be faster.
+	s.TearDown()
 
-	return resCh
+	return res
+}
+
+func (s *smcSessionMock) TearDown() {
+	s.phase = proto.SMCCmd_FINISH
+	s.condTearDown()
+}
+
+// condTearDown releases resources to the pool in case of reaching an invalid or final state
+// expecting no further commands.
+func (s *smcSessionMock) condTearDown() {
+	if s.phase >= proto.SMCCmd_FINISH && s.tearedDown == false {
+		// Invalidate session.
+		s.tearedDown = true
+		// Return resources for other session requestors.
+		s.done <- struct{}{}
+	}
 }
 
 func (s *smcSessionMock) validateSession(in *proto.SMCCmd) error {
@@ -157,19 +209,11 @@ func (s *smcSessionMock) allowPhaseTransition(newPhase proto.SMCCmd_Phase) bool 
 	return allow
 }
 
-func sendResponse(resp proto.CmdResult) <-chan *proto.CmdResult {
-	resCh := make(chan *proto.CmdResult)
-	go func() {
-		resCh <- &resp
-	}()
-	return resCh
-}
-
-func sendError(err error) (out <-chan *proto.CmdResult, more bool) {
-	out = sendResponse(proto.CmdResult{
+func sendError(err error) (out *proto.CmdResult, more bool) {
+	out = &proto.CmdResult{
 		Status: proto.CmdResult_DENIED,
 		Msg:    err.Error(),
-	})
+	}
 	more = false
 	return
 }

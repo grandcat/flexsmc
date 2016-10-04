@@ -126,7 +126,7 @@ func (p *Peer) Run() {
 	}
 	// SpawnListener ends at the moment when finishing a SMC session.
 	// Need to respawn on time.
-	advisor.SpawnListener()
+	advisor.ContinousSpawn()
 
 	wg.Wait()
 	p.srpc.TearDown()
@@ -137,28 +137,48 @@ type smcAdvisor struct {
 	ctx     context.Context
 	gwConn  proto.GatewayClient
 	smcConn smc.Connector
-	wg      *sync.WaitGroup
+	// Waitgroup notifies the main routine if all of our routines are done
+	wg *sync.WaitGroup
+}
+
+func (s *smcAdvisor) ContinousSpawn() {
+	for {
+		if err := s.SpawnListener(); err != nil {
+			break
+		}
+	}
+
 }
 
 func (s *smcAdvisor) SpawnListener() error {
+	// Blocks until stand-by SMC backend could be reserved.
+	smcSession, err := s.smcConn.RequestSession(s.ctx)
+	if err != nil {
+		log.Printf("Reservation of SMC backend failed: %v", err)
+		return err
+	}
+	// once a stand-by SMC instance is available, a C&C channel is established
+	// to receive SMC commands.
 	stream, err := s.gwConn.AwaitSMCRound(s.ctx)
 	if err != nil {
+		smcSession.TearDown()
 		log.Printf("Could not receive SMC cmds: %v", err)
 		return err
 	}
 
 	s.wg.Add(1)
-	go s.smc(stream)
-	log.Printf("Spawned new SMC listener routine to GW")
+	go s.smc(stream, smcSession)
+	log.Printf("Spawned new listener routine for SMC channel to GW")
 
 	return nil
 }
 
-func (s *smcAdvisor) smc(stream proto.Gateway_AwaitSMCRoundClient) {
+func (s *smcAdvisor) smc(stream proto.Gateway_AwaitSMCRoundClient, smcSess smc.Session) {
 	defer s.wg.Done()
+	defer smcSess.TearDown()
 
-	var smcSess smc.Session
 	moreCmds := true
+	var cntCmds uint
 
 	for moreCmds {
 		in, err := stream.Recv()
@@ -170,24 +190,21 @@ func (s *smcAdvisor) smc(stream proto.Gateway_AwaitSMCRoundClient) {
 			break
 		}
 		log.Printf(">> [%v] SMC Cmd: %v", time.Now(), in)
-
-		// Try allocating SMC session on first use
-		if smcSess == nil {
-			var smcErr error
-			smcSess, smcErr = s.smcConn.Attach(stream.Context(), in.SessionID)
-			if smcErr != nil {
-				stream.Send(&proto.CmdResult{Status: proto.CmdResult_DENIED, Msg: smcErr.Error()})
-				stream.CloseSend()
-				break
-			}
+		// Initialize session on first interaction.
+		if cntCmds == 0 {
+			smcSess.Init(stream.Context(), in.SessionID)
 		}
-		// Trigger state machine in SMC backend and wait for result
-		var resp <-chan *proto.CmdResult
+		// Trigger state machine in SMC backend and send generated response.
+		var resp *proto.CmdResult
 		resp, moreCmds = smcSess.NextCmd(in)
 		// Send back response
-		m := <-resp
-		log.Println(">> Reply to GW now")
-		stream.Send(m)
+		log.Printf(">>[%v] Reply to GW now", moreCmds)
+		stream.Send(resp)
+
+		cntCmds++
 	}
+	// A new stream is created for the next SMC round. So close this one.
+	// XXX: reuse stream to save resources, but requires stream management
+	stream.CloseSend()
 
 }

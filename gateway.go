@@ -92,6 +92,9 @@ func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error 
 				return err
 			}
 			log.Printf("[%s] chat loop finished.", a.ID)
+			// XXX: kill the chat here as we are done. Check if we should keep it and
+			// reuse it in favor of recreating a new channel on peer side.
+			return nil
 
 		// Periodic activity check
 		// We cannot fully rely on gRPC send a notification via the context. Especially
@@ -106,7 +109,7 @@ func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error 
 
 		// Handling remote peer gracefully shutting down stream connection
 		case <-streamCtx.Done():
-			log.Printf("Conn to peer %s died unexpectedly", a.ID)
+			log.Printf("Conn to peer %s teared down unexpectedly", a.ID)
 			// Stopping ticker and unsubscribing from chan is done here (-> defer)
 			return nil
 		}
@@ -181,24 +184,28 @@ func (g *Gateway) Run() {
 		comm := wiring.NewPeerConnection(g.reg)
 		// n.reg.Watcher.AvailableNodes
 		// Declare message for transmission
-		m := proto.SMCCmd{
-			State: proto.SMCCmd_PREPARE,
-			Payload: &proto.SMCCmd_Prepare{&proto.Prepare{
-				Participants: []*proto.Prepare_Participant{&proto.Prepare_Participant{Addr: "myAddr", Identity: "ident"}},
-			}},
-		}
-		// Submit to online peers
-		jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
-		defer cancel()
-		job, _ := comm.SubmitJob(jobTimeout, g.reg.Watcher.AvailablePeers(), &m)
-
 		for {
-			res, ok := <-job.Result()
-			if !ok {
-				log.Println(">> GW: feedback channel closed:", job.Err())
-				break
+			// Send job to online peers
+			m := proto.SMCCmd{
+				State: proto.SMCCmd_PREPARE,
+				Payload: &proto.SMCCmd_Prepare{&proto.Prepare{
+					Participants: []*proto.Prepare_Participant{&proto.Prepare_Participant{Addr: "myAddr", Identity: "ident"}},
+				}},
 			}
-			log.Println(">> GW: RESULT FROM PEER:", res)
+			// Submit to online peers
+			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
+			defer cancel()
+			job, _ := comm.SubmitJob(jobTimeout, g.reg.Watcher.AvailablePeers(), &m)
+
+			for {
+				res, ok := <-job.Result()
+				if !ok {
+					log.Println(">> GW: feedback channel closed:", job.Err())
+					break
+				}
+				log.Println(">> GW: RESULT FROM PEER:", res)
+			}
+			time.Sleep(time.Second * 7)
 		}
 
 	}()
