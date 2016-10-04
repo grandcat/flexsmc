@@ -88,13 +88,16 @@ func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error 
 		select {
 		// GW wants to talk to this peer via the established chat
 		case ch := <-gwChat:
-			if err := chatLoop(stream, ch); err != nil {
+			keepAlive, err := chatLoop(stream, ch)
+			if err != nil {
 				return err
 			}
 			log.Printf("[%s] chat loop finished.", a.ID)
 			// XXX: kill the chat here as we are done. Check if we should keep it and
 			// reuse it in favor of recreating a new channel on peer side.
-			return nil
+			if !keepAlive {
+				return nil
+			}
 
 		// Periodic activity check
 		// We cannot fully rely on gRPC send a notification via the context. Especially
@@ -118,7 +121,7 @@ func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error 
 }
 
 // Ping-ping chat between peer and gateway until one of them tears down the connection.
-func chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGateway) error {
+func chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGateway) (bool, error) {
 	streamCtx := stream.Context()
 	a, _ := auth.FromAuthContext(streamCtx)
 
@@ -128,12 +131,12 @@ func chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGat
 		cmd, more := <-fromGW
 		if !more {
 			// TODO: notify peer about finished SMC session (or just kill stream?)
-			return nil
+			break
 		}
 		// 1. Send instruction to waiting peer
 		log.Printf("GW -> %s: %v", a.ID, cmd)
 		if err := stream.Send(cmd); err != nil {
-			return err
+			return false, err
 		}
 		// 2. Wait for response and forward to waiting GW
 		resp, err := stream.Recv()
@@ -141,11 +144,13 @@ func chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGat
 			// Inform GW about loss of connection
 			toGW <- &proto.CmdResult{Status: proto.CmdResult_STREAM_ERR}
 			log.Printf("[%s] stream rcv aborted.", a.ID)
-			return err
+			return false, err
 		}
 		ch.SetPeerMetadata(resp)
 		toGW <- resp
 	}
+	// TODO: check if peer wants to keep this stream. Default: close it
+	return false, nil
 }
 
 // GW operation
