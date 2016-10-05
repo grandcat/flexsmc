@@ -18,24 +18,26 @@ type JobWatcher interface {
 	Err() *PeerError
 }
 
+type JobInstruction struct {
+	Context context.Context
+	Targets []*directory.PeerInfo
+	Task    *proto.SMCCmd
+}
+
 type job struct {
 	feedback chan *proto.CmdResult
 	lastErr  *PeerError
 	mu       sync.Mutex
-	// Static job context and instructions
-	ctx     context.Context
-	targets []*directory.PeerInfo
-	smcCmd  *proto.SMCCmd
+	// Instruction with job context, target peers and their task to do
+	instr JobInstruction
 	// Context for worker processing this job
 	chats map[auth.PeerID]directory.ChatWithPeer
 }
 
-func newJob(ctx context.Context, targets []*directory.PeerInfo, cmd *proto.SMCCmd) *job {
+func newJob(instruction JobInstruction) *job {
 	return &job{
 		feedback: make(chan *proto.CmdResult),
-		ctx:      ctx,
-		targets:  targets,
-		smcCmd:   cmd,
+		instr:    instruction,
 	}
 }
 
@@ -49,14 +51,16 @@ func (j *job) Err() *PeerError {
 	return j.lastErr
 }
 
+// API facing communication with worker peers
+
 // openPeerChats initiates a bi-directional communication channel to each peer.
 // If it takes too much time until the corresponding peer reacts on our
 // talk request, we need to inform the originator of this job.
 func (j *job) openPeerChats(ctx context.Context) *PeerError {
-	j.chats = make(map[auth.PeerID]directory.ChatWithPeer, len(j.targets))
+	j.chats = make(map[auth.PeerID]directory.ChatWithPeer, len(j.instr.Targets))
 	var errPeers []*directory.PeerInfo
 
-	for _, p := range j.targets {
+	for _, p := range j.instr.Targets {
 		pch, err := p.RequestChat(ctx)
 		if err != nil {
 			errPeers = append(errPeers, p)
@@ -124,16 +128,6 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *proto.SMCCmd) ([]*proto
 	return resps, err
 }
 
-func (j *job) abort(e *PeerError) {
-	j.mu.Lock()
-	j.lastErr = e
-	j.mu.Unlock()
-	// Notify client (job originator) about error
-	close(j.feedback)
-
-	j.closeAllChats()
-}
-
 var ErrEmptyChannel = errors.New("input channel is empty")
 
 func pullRespUntilDone(ctx context.Context, in <-chan *proto.CmdResult) (*proto.CmdResult, error) {
@@ -154,4 +148,20 @@ func pullRespUntilDone(ctx context.Context, in <-chan *proto.CmdResult) (*proto.
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+// API facing job originator for interaction
+
+func (j *job) sendFeedback(resp *proto.CmdResult) {
+	j.feedback <- resp
+}
+
+func (j *job) abort(e *PeerError) {
+	j.mu.Lock()
+	j.lastErr = e
+	j.mu.Unlock()
+	// Notify client (job originator) about error
+	close(j.feedback)
+
+	j.closeAllChats()
 }

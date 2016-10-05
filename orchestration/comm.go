@@ -29,17 +29,22 @@ func NewPeerNetwork(r *directory.Registry) *PeerNetwork {
 	return pc
 }
 
-func (pc *PeerNetwork) SubmitJob(ctx context.Context, dest []*directory.PeerInfo, cmd *proto.SMCCmd) (JobWatcher, error) {
-	t := newJob(ctx, dest, cmd)
+func (pc *PeerNetwork) SubmitJob(ctx context.Context, dest []*directory.PeerInfo, task *proto.SMCCmd) (JobWatcher, error) {
+	instr := JobInstruction{
+		Context: ctx,
+		Targets: dest,
+		Task:    task,
+	}
+	j := newJob(instr)
 	// Enqueue for worker pool
 	select {
-	case pc.jobs <- t:
+	case pc.jobs <- j:
 		// Everything fine. Soon, an available worker should start processing the task.
 	default:
 		return nil, fmt.Errorf("too many tasks running")
 	}
 
-	return t, nil
+	return j, nil
 }
 
 func (pc *PeerNetwork) RescheduleOpenTask() {
@@ -56,21 +61,21 @@ func (pc *PeerNetwork) jobWorker() {
 	}
 }
 
-func processJob(t *job) {
+func processJob(j *job) {
 	prepCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	err := t.openPeerChats(prepCtx)
+	err := j.openPeerChats(prepCtx)
 	if err != nil {
 		// Minimum 1 tchat failed. Abort early so GW can schedule the same task for a subset
 		// of the current target peers if applicable.
-		t.abort(err)
+		j.abort(err)
 		return
 	}
 	// Prepare phase with task
-	_, err = t.queryTargetsSync(prepCtx, t.smcCmd)
+	_, err = j.queryTargetsSync(prepCtx, j.instr.Task)
 	if err != nil {
-		t.abort(err)
+		j.abort(err)
 		return
 	}
 	// Trigger session and wait for final results
@@ -78,19 +83,19 @@ func processJob(t *job) {
 		State:   proto.SMCCmd_SESSION,
 		Payload: &proto.SMCCmd_Session{&proto.SessionPhase{}},
 	}
-	results, err := t.queryTargetsSync(t.ctx, sp)
+	results, err := j.queryTargetsSync(j.instr.Context, sp)
 	// Send back results if there are any
 	// XXX: replace with direct routing of results to the client
 	for _, r := range results {
-		t.feedback <- r
+		j.sendFeedback(r)
 	}
 	if err != nil {
-		t.abort(err)
+		j.abort(err)
 		return
 	}
 	// Notify client that we are done here.
-	close(t.feedback)
+	close(j.feedback)
 
 	// No more instructions from our side for the group of peers.
-	t.closeAllChats()
+	j.closeAllChats()
 }
