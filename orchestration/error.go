@@ -1,4 +1,4 @@
-package wiring
+package orchestration
 
 import "github.com/grandcat/flexsmc/directory"
 

@@ -8,8 +8,8 @@ import (
 
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
 	"github.com/grandcat/flexsmc/directory"
+	"github.com/grandcat/flexsmc/orchestration"
 	proto "github.com/grandcat/flexsmc/proto"
-	"github.com/grandcat/flexsmc/wiring"
 	auth "github.com/grandcat/srpc/authentication"
 	"github.com/grandcat/srpc/pairing"
 	"github.com/grandcat/srpc/server"
@@ -179,7 +179,7 @@ func (g *Gateway) Run() {
 	go func() {
 		time.Sleep(time.Second * 10)
 		log.Println(">>GW: try sending message to peer")
-		comm := wiring.NewPeerConnection(g.reg)
+		comm := orchestration.NewPeerConnection(g.reg)
 		// n.reg.Watcher.AvailableNodes
 		// Declare message for transmission
 		for {

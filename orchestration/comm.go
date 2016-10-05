@@ -1,4 +1,4 @@
-package wiring
+package orchestration
 
 import (
 	"context"
