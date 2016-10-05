@@ -63,12 +63,8 @@ func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error 
 	streamCtx := stream.Context()
 	a, _ := auth.FromAuthContext(streamCtx)
 	log.Println(">>Stream requested from:", a.ID)
-	// Implicitly notify the registry of peer activity so the first call
-	// to ping() RPC can come later.
-	p, err := n.reg.Get(a.ID)
-	if err != nil {
-		return err
-	}
+
+	p := n.reg.GetOrCreate(a.ID)
 	p.Touch(a.Addr)
 
 	// Await a C&C channel from the gateway. This means some work is waiting
@@ -77,9 +73,6 @@ func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error 
 	// we need to check whether it is still alive. Otherwise, this peer is
 	// teared down and needs to register again prior to new jobs.
 	gwChat := p.SubscribeCmdChan()
-	if err != nil {
-		return err
-	}
 	defer p.UnsubscribeCmdChan()
 
 	t := time.NewTicker(time.Second * 30)
@@ -92,7 +85,7 @@ func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error 
 			if err != nil {
 				return err
 			}
-			log.Printf("[%s] chat loop finished.", a.ID)
+			log.Printf("gw: [%s] chat loop finished.", a.ID)
 			// XXX: kill the chat here as we are done. Check if we should keep it and
 			// reuse it in favor of recreating a new channel on peer side.
 			if !keepAlive {
@@ -107,12 +100,12 @@ func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error 
 			act := p.LastActivity().Seconds()
 			if act > directory.MaxActivityGap {
 				// Shutdown instruction channel as the peer is probably offline.
-				return fmt.Errorf("no ping activity for too long")
+				return fmt.Errorf("gw: no ping activity for too long")
 			}
 
 		// Handling remote peer gracefully shutting down stream connection
 		case <-streamCtx.Done():
-			log.Printf("Conn to peer %s teared down unexpectedly", a.ID)
+			log.Printf("gw: conn to peer %s teared down unexpectedly", a.ID)
 			// Stopping ticker and unsubscribing from chan is done here (-> defer)
 			return nil
 		}
