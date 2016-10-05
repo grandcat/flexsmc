@@ -97,7 +97,7 @@ func (pi *PeerInfo) SubscribeCmdChan() <-chan ChatWithGateway {
 	pi.mu.Lock()
 	defer pi.mu.Unlock()
 	// We assume that the previous chan was closed via UnsubscribeCmdChan().
-	log.Printf("[%s] SubscribeCmdChan ", pi.ID)
+	log.Printf("PeerInfo: [%s] SubscribeCmdChan ", pi.ID)
 	// Add peer to pool of available peers
 	pi.stateNotifier <- stateChange{avail: 2, p: pi}
 
@@ -114,7 +114,7 @@ func (pi *PeerInfo) UnsubscribeCmdChan() {
 	// Not necessary to close the channel if this signal is unused.
 	// See https://groups.google.com/forum/#!msg/golang-nuts/pZwdYRGxCIk/qpbHxRRPJdUJ .
 	// close(pi.tx) // NOTE: panics if chan is closed already!
-	log.Println("Close comm chan to peer", pi.ID)
+	log.Printf("PeerInfo: [%s] UnsubscribeCmdChan", pi.ID)
 }
 
 // RequestChat: channel container to communicate with this peer

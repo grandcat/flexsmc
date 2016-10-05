@@ -95,50 +95,95 @@ func (p *Peer) Run() {
 		return
 	}
 	c := proto.NewGatewayClient(cc)
+
+	ctxMods, cancelMods := context.WithTimeout(context.Background(), time.Second*120)
+	defer cancelMods()
 	var wg sync.WaitGroup
-	// wg.Add(1)
 
-	// Test1: ping our gateway
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 4; i++ {
-			ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
-			resp, err := c.Ping(ctx, &proto.SMCInfo{12345})
-			if err != nil {
-				log.Printf("Could not ping GW %s: %v", peerID, err)
-				return
-			}
-			log.Println("Ping resp:", resp.Status)
+	// Start regular health report
+	healthReporter := healthReporter{
+		ctx:          ctxMods,
+		wg:           &wg,
+		gwConn:       c,
+		pingInterval: time.Second * 10,
+	}
+	healthReporter.start()
 
-			time.Sleep(time.Second * 10)
-		}
-	}()
 	// XXX: wait some time until first ping arrived to register our node to the
 	//      internal DB.
-	time.Sleep(time.Millisecond * 250)
+	time.Sleep(time.Millisecond * 500)
 
 	// Test2: receive stream of SMCCmds
 	advisor := smcAdvisor{
-		ctx:     context.Background(),
+		ctx:     ctxMods,
+		wg:      &wg,
 		gwConn:  c,
 		smcConn: p.smcConn,
-		wg:      &wg,
 	}
 	// SpawnListener ends at the moment when finishing a SMC session.
 	// Need to respawn on time.
 	advisor.ContinousSpawn()
 
 	wg.Wait()
+	cancelMods()
+	log.Println(">>Canceled mods two times")
+	// Reaching this point means either
+	// * the connection is lost (e.g. GW is done, different network)
+	// *
+
 	p.srpc.TearDown()
 }
 
-// smcAdvisor redirects SMC jobs to a SMC backend and sends back the result.
+type healthReporter struct {
+	ctx context.Context
+	wg  *sync.WaitGroup //< notify master routine when done due to error or ctx
+
+	gwConn proto.GatewayClient
+
+	pingInterval time.Duration
+}
+
+func (h *healthReporter) start() {
+	h.wg.Add(1)
+	go h.report()
+}
+
+func (h *healthReporter) report() {
+	defer h.wg.Done()
+
+	ticker := time.NewTicker(h.pingInterval)
+	defer ticker.Stop()
+
+	for {
+		// Ping
+		resp, err := h.gwConn.Ping(h.ctx, &proto.SMCInfo{12345})
+		if err != nil {
+			log.Printf("Could not ping GW: %v", err)
+			return
+		}
+		log.Println("Ping resp:", resp.Status)
+
+		select {
+		case <-ticker.C:
+			// Do nothing and ping again on next round :-)
+
+		case <-h.ctx.Done():
+			// Abort by context
+			log.Printf("Health reporter aborted: %v", h.ctx.Err())
+			return
+		}
+	}
+}
+
+// smcAdvisor receives SMC jobs, schedules them to available resources of the SMC
+// backend and manages the low-level connection handling between GW and this peer.
 type smcAdvisor struct {
-	ctx     context.Context
-	gwConn  proto.GatewayClient
-	smcConn smc.Connector
+	ctx context.Context
 	// Waitgroup notifies the main routine if all of our routines are done
 	wg *sync.WaitGroup
+
+	gwConn  proto.GatewayClient
+	smcConn smc.Connector
 }
 
 func (s *smcAdvisor) ContinousSpawn() {
@@ -146,12 +191,13 @@ func (s *smcAdvisor) ContinousSpawn() {
 		if err := s.SpawnListener(); err != nil {
 			break
 		}
+		time.Sleep(time.Second)
 	}
 
 }
 
 func (s *smcAdvisor) SpawnListener() error {
-	// Blocks until stand-by SMC backend could be reserved.
+	// Blocks until stand-by session from SMC backend is available for Reservation.
 	smcSession, err := s.smcConn.RequestSession(s.ctx)
 	if err != nil {
 		log.Printf("Reservation of SMC backend failed: %v", err)
