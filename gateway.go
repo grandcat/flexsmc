@@ -179,7 +179,7 @@ func (g *Gateway) Run() {
 	go func() {
 		time.Sleep(time.Second * 10)
 		log.Println(">>GW: try sending message to peer")
-		comm := orchestration.NewPeerConnection(g.reg)
+		comm := orchestration.NewPeerNetwork(g.reg)
 		// n.reg.Watcher.AvailableNodes
 		// Declare message for transmission
 		for {

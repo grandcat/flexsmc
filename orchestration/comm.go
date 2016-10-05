@@ -10,13 +10,13 @@ import (
 	proto "github.com/grandcat/flexsmc/proto"
 )
 
-type PeerConnection struct {
+type PeerNetwork struct {
 	reg  *directory.Registry
 	jobs chan *job
 }
 
-func NewPeerConnection(r *directory.Registry) *PeerConnection {
-	pc := &PeerConnection{
+func NewPeerNetwork(r *directory.Registry) *PeerNetwork {
+	pc := &PeerNetwork{
 		reg:  r,
 		jobs: make(chan *job, 4),
 	}
@@ -29,7 +29,7 @@ func NewPeerConnection(r *directory.Registry) *PeerConnection {
 	return pc
 }
 
-func (pc *PeerConnection) SubmitJob(ctx context.Context, dest []*directory.PeerInfo, cmd *proto.SMCCmd) (JobWatcher, error) {
+func (pc *PeerNetwork) SubmitJob(ctx context.Context, dest []*directory.PeerInfo, cmd *proto.SMCCmd) (JobWatcher, error) {
 	t := newJob(ctx, dest, cmd)
 	// Enqueue for worker pool
 	select {
@@ -42,13 +42,13 @@ func (pc *PeerConnection) SubmitJob(ctx context.Context, dest []*directory.PeerI
 	return t, nil
 }
 
-func (pc *PeerConnection) RescheduleOpenTask() {
+func (pc *PeerNetwork) RescheduleOpenTask() {
 	// TODO:
 	// Reuse an existing tasks with opened chats so we do not need to reopen them.
 	// This safes some time and resources.
 }
 
-func (pc *PeerConnection) jobWorker() {
+func (pc *PeerNetwork) jobWorker() {
 	for t := range pc.jobs {
 		fmt.Println("Task starts:", t)
 		processJob(t)
