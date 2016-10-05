@@ -2,17 +2,26 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"sync"
 	"time"
 
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
+	"github.com/grandcat/flexsmc/modules"
 	proto "github.com/grandcat/flexsmc/proto"
 	"github.com/grandcat/flexsmc/smc"
 	"github.com/grandcat/srpc/client"
 	"github.com/grandcat/srpc/pairing"
 	"golang.org/x/net/context"
+)
+
+type RunState uint8
+
+const (
+	Discovery RunState = iota
+	Connecting
+	Connected
+	Running
 )
 
 type Peer struct {
@@ -42,7 +51,7 @@ func (p *Peer) Init() {
 	}
 }
 
-func (p *Peer) RunStateMachine() {
+func (p *Peer) StateMachine() {
 
 }
 
@@ -98,159 +107,30 @@ func (p *Peer) Run() {
 
 	ctxMods, cancelMods := context.WithTimeout(context.Background(), time.Second*120)
 	defer cancelMods()
-	var wg sync.WaitGroup
+	modInfo := modules.ModuleContext{
+		Context:    ctxMods,
+		ActiveMods: &sync.WaitGroup{},
+		GWConn:     c,
+	}
 
 	// Start regular health report
-	healthReporter := healthReporter{
-		ctx:          ctxMods,
-		wg:           &wg,
-		gwConn:       c,
-		pingInterval: time.Second * 10,
-	}
-	healthReporter.start()
+	healthMod := modules.NewHealthReporter(modInfo, time.Second*10)
+	healthMod.Start()
 
-	// XXX: wait some time until first ping arrived to register our node to the
-	//      internal DB.
 	time.Sleep(time.Millisecond * 500)
 
 	// Test2: receive stream of SMCCmds
-	advisor := smcAdvisor{
-		ctx:     ctxMods,
-		wg:      &wg,
-		gwConn:  c,
-		smcConn: p.smcConn,
-	}
+	smcAdvisor := modules.NewSMCAdvisor(modInfo, p.smcConn)
 	// SpawnListener ends at the moment when finishing a SMC session.
 	// Need to respawn on time.
-	advisor.ContinousSpawn()
+	smcAdvisor.BlockingSpawn()
 
-	wg.Wait()
-	cancelMods()
-	log.Println(">>Canceled mods two times")
+	modInfo.ActiveMods.Wait()
 	// Reaching this point means either
 	// * the connection is lost (e.g. GW is done, different network)
-	// *
+	// * context is done
+	cancelMods()
+	log.Println(">>Canceled mods two times")
 
 	p.srpc.TearDown()
-}
-
-type healthReporter struct {
-	ctx context.Context
-	wg  *sync.WaitGroup //< notify master routine when done due to error or ctx
-
-	gwConn proto.GatewayClient
-
-	pingInterval time.Duration
-}
-
-func (h *healthReporter) start() {
-	h.wg.Add(1)
-	go h.report()
-}
-
-func (h *healthReporter) report() {
-	defer h.wg.Done()
-
-	ticker := time.NewTicker(h.pingInterval)
-	defer ticker.Stop()
-
-	for {
-		// Ping
-		resp, err := h.gwConn.Ping(h.ctx, &proto.SMCInfo{12345})
-		if err != nil {
-			log.Printf("Could not ping GW: %v", err)
-			return
-		}
-		log.Println("Ping resp:", resp.Status)
-
-		select {
-		case <-ticker.C:
-			// Do nothing and ping again on next round :-)
-
-		case <-h.ctx.Done():
-			// Abort by context
-			log.Printf("Health reporter aborted: %v", h.ctx.Err())
-			return
-		}
-	}
-}
-
-// smcAdvisor receives SMC jobs, schedules them to available resources of the SMC
-// backend and manages the low-level connection handling between GW and this peer.
-type smcAdvisor struct {
-	ctx context.Context
-	// Waitgroup notifies the main routine if all of our routines are done
-	wg *sync.WaitGroup
-
-	gwConn  proto.GatewayClient
-	smcConn smc.Connector
-}
-
-func (s *smcAdvisor) ContinousSpawn() {
-	for {
-		if err := s.SpawnListener(); err != nil {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-
-}
-
-func (s *smcAdvisor) SpawnListener() error {
-	// Blocks until stand-by session from SMC backend is available for Reservation.
-	smcSession, err := s.smcConn.RequestSession(s.ctx)
-	if err != nil {
-		log.Printf("Reservation of SMC backend failed: %v", err)
-		return err
-	}
-	// once a stand-by SMC instance is available, a C&C channel is established
-	// to receive SMC commands.
-	stream, err := s.gwConn.AwaitSMCRound(s.ctx)
-	if err != nil {
-		smcSession.TearDown()
-		log.Printf("Could not receive SMC cmds: %v", err)
-		return err
-	}
-
-	s.wg.Add(1)
-	go s.smc(stream, smcSession)
-	log.Printf("Spawned new listener routine for SMC channel to GW")
-
-	return nil
-}
-
-func (s *smcAdvisor) smc(stream proto.Gateway_AwaitSMCRoundClient, smcSess smc.Session) {
-	defer s.wg.Done()
-	defer smcSess.TearDown()
-
-	moreCmds := true
-	var cntCmds uint
-
-	for moreCmds {
-		in, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Printf("%v.ListFeatures(_) = _, %v", s.gwConn, err)
-			break
-		}
-		log.Printf(">> [%v] SMC Cmd: %v", time.Now(), in)
-		// Initialize session on first interaction.
-		if cntCmds == 0 {
-			smcSess.Init(stream.Context(), in.SessionID)
-		}
-		// Trigger state machine in SMC backend and send generated response.
-		var resp *proto.CmdResult
-		resp, moreCmds = smcSess.NextCmd(in)
-		// Send back response
-		log.Printf(">>[%v] Reply to GW now", moreCmds)
-		stream.Send(resp)
-
-		cntCmds++
-	}
-	// A new stream is created for the next SMC round. So close this one.
-	// XXX: reuse stream to save resources, but requires stream management
-	stream.CloseSend()
-
 }
