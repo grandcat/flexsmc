@@ -184,24 +184,30 @@ func (g *Gateway) Run() {
 		// Declare message for transmission
 		for {
 			// Send job to online peers
-			m := proto.SMCCmd{
+			p1 := &proto.SMCCmd{
 				State: proto.SMCCmd_PREPARE,
 				Payload: &proto.SMCCmd_Prepare{&proto.Prepare{
 					Participants: []*proto.Prepare_Participant{&proto.Prepare_Participant{Addr: "myAddr", Identity: "ident"}},
 				}},
 			}
+			p2 := &proto.SMCCmd{
+				State:   proto.SMCCmd_SESSION,
+				Payload: &proto.SMCCmd_Session{&proto.SessionPhase{}},
+			}
 			// Submit to online peers
 			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
 			defer cancel()
-			job, _ := comm.SubmitJob(jobTimeout, g.reg.Watcher.AvailablePeers(), &m)
+			job, _ := comm.SubmitJob(jobTimeout, g.reg.Watcher.AvailablePeers(), []*proto.SMCCmd{p1, p2})
 
+			resCnt := 0
 			for {
 				res, ok := <-job.Result()
 				if !ok {
 					log.Println(">> GW: feedback channel closed:", job.Err())
 					break
 				}
-				log.Println(">> GW: RESULT FROM PEER:", res)
+				log.Printf(">> GW: RESULT FROM PEER[%d]: %v", resCnt, res)
+				resCnt++
 			}
 			time.Sleep(time.Second * 7)
 		}

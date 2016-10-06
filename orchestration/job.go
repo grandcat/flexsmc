@@ -11,37 +11,48 @@ import (
 	auth "github.com/grandcat/srpc/authentication"
 )
 
+type JobInstruction struct {
+	Context context.Context
+	Targets []*directory.PeerInfo
+	Tasks   []*proto.SMCCmd
+}
+
 type JobWatcher interface {
-	Result() <-chan *proto.CmdResult
+	// Result is a stream of responses sent by their peers.
+	// To differentiate multiple protocol phases, each result carries
+	// the current progress.
+	// Progress must NOT mix. This means there is an unique transition from
+	// phase 0 -> phase 1, for instance.
+	Result() <-chan PeerResult
 	// Err is non-nil if a critical error occurred during operation.
 	// It should be called first when Result() chan was called from our side.
 	Err() *PeerError
 }
 
-type JobInstruction struct {
-	Context context.Context
-	Targets []*directory.PeerInfo
-	Task    *proto.SMCCmd
+type PeerResult struct {
+	PhaseProgress int
+	Response      *proto.CmdResult
 }
 
 type job struct {
-	feedback chan *proto.CmdResult
+	feedback chan PeerResult
 	lastErr  *PeerError
 	mu       sync.Mutex
 	// Instruction with job context, target peers and their task to do
 	instr JobInstruction
 	// Context for worker processing this job
-	chats map[auth.PeerID]directory.ChatWithPeer
+	phaseProgress int
+	chats         map[auth.PeerID]directory.ChatWithPeer
 }
 
 func newJob(instruction JobInstruction) *job {
 	return &job{
-		feedback: make(chan *proto.CmdResult),
+		feedback: make(chan PeerResult),
 		instr:    instruction,
 	}
 }
 
-func (j *job) Result() <-chan *proto.CmdResult {
+func (j *job) Result() <-chan PeerResult {
 	return j.feedback
 }
 
@@ -55,12 +66,23 @@ func (j *job) Err() *PeerError {
 
 // openPeerChats initiates a bi-directional communication channel to each peer.
 // If it takes too much time until the corresponding peer reacts on our
-// talk request, we need to inform the originator of this job.
+// talk request, it is dropped and the job informs the originator about that.
+//
+// For a resubmitted job, established chats are kept alive for peers whose
+// communication worked. Faulty chats are kicked on any failure on the
+// communication layer.
 func (j *job) openPeerChats(ctx context.Context) *PeerError {
-	j.chats = make(map[auth.PeerID]directory.ChatWithPeer, len(j.instr.Targets))
 	var errPeers []*directory.PeerInfo
 
+	if j.chats == nil {
+		j.chats = make(map[auth.PeerID]directory.ChatWithPeer, len(j.instr.Targets))
+	}
+
 	for _, p := range j.instr.Targets {
+		if _, exists := j.chats[p.ID]; exists {
+			continue
+		}
+
 		pch, err := p.RequestChat(ctx)
 		if err != nil {
 			errPeers = append(errPeers, p)
@@ -76,9 +98,12 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 	return nil
 }
 
-// removePeerChat deletes entry from map of active chats.
+// removePeerChat closes and deletes the chats to these peers.
+// It is essential to do so that a resubmitted job has a new chance to
+// initiate a new chat to a previously faulty peer.
 func (j *job) removePeerChats(peers []*directory.PeerInfo) {
 	for _, p := range peers {
+		j.chats[p.ID].Close()
 		delete(j.chats, p.ID)
 	}
 }
@@ -150,10 +175,21 @@ func pullRespUntilDone(ctx context.Context, in <-chan *proto.CmdResult) (*proto.
 	}
 }
 
+func (j *job) remainingTasks() []*proto.SMCCmd {
+	if j.phaseProgress >= len(j.instr.Tasks) {
+		return []*proto.SMCCmd{}
+	}
+	return j.instr.Tasks[j.phaseProgress:]
+}
+
+func (j *job) incProgress() {
+	j.phaseProgress++
+}
+
 // API facing job originator for interaction
 
 func (j *job) sendFeedback(resp *proto.CmdResult) {
-	j.feedback <- resp
+	j.feedback <- PeerResult{PhaseProgress: j.phaseProgress, Response: resp}
 }
 
 func (j *job) abort(e *PeerError) {

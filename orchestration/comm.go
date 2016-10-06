@@ -29,11 +29,11 @@ func NewPeerNetwork(r *directory.Registry) *PeerNetwork {
 	return pc
 }
 
-func (pc *PeerNetwork) SubmitJob(ctx context.Context, dest []*directory.PeerInfo, task *proto.SMCCmd) (JobWatcher, error) {
+func (pc *PeerNetwork) SubmitJob(ctx context.Context, dest []*directory.PeerInfo, tasks []*proto.SMCCmd) (JobWatcher, error) {
 	instr := JobInstruction{
 		Context: ctx,
 		Targets: dest,
-		Task:    task,
+		Tasks:   tasks,
 	}
 	j := newJob(instr)
 	// Enqueue for worker pool
@@ -51,6 +51,9 @@ func (pc *PeerNetwork) RescheduleOpenTask() {
 	// TODO:
 	// Reuse an existing tasks with opened chats so we do not need to reopen them.
 	// This safes some time and resources.
+	// Currently the assumption is that peers might only be removed. Adding new peers
+	// might result in undefined behavior as they missed phases previously sent
+	// (if some progress was made).
 }
 
 func (pc *PeerNetwork) jobWorker() {
@@ -67,31 +70,26 @@ func processJob(j *job) {
 
 	err := j.openPeerChats(prepCtx)
 	if err != nil {
-		// Minimum 1 tchat failed. Abort early so GW can schedule the same task for a subset
+		// Minimum 1 chat failed. Abort early so GW can schedule the same task for a subset
 		// of the current target peers if applicable.
 		j.abort(err)
 		return
 	}
-	// Prepare phase with task
-	_, err = j.queryTargetsSync(prepCtx, j.instr.Task)
-	if err != nil {
-		j.abort(err)
-		return
-	}
-	// Trigger session and wait for final results
-	sp := &proto.SMCCmd{
-		State:   proto.SMCCmd_SESSION,
-		Payload: &proto.SMCCmd_Session{&proto.SessionPhase{}},
-	}
-	results, err := j.queryTargetsSync(j.instr.Context, sp)
-	// Send back results if there are any
-	// XXX: replace with direct routing of results to the client
-	for _, r := range results {
-		j.sendFeedback(r)
-	}
-	if err != nil {
-		j.abort(err)
-		return
+	// Work through all phases
+	cmds := j.remainingTasks()
+	for _, t := range cmds {
+		results, err := j.queryTargetsSync(j.instr.Context, t)
+		// Send back results if there are any
+		// XXX: replace with direct routing of results to the client
+		for _, r := range results {
+			j.sendFeedback(r)
+		}
+		if err != nil {
+			j.abort(err)
+			return
+		}
+
+		j.incProgress()
 	}
 	// Notify client that we are done here.
 	close(j.feedback)

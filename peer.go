@@ -119,7 +119,7 @@ func (p *Peer) Run() {
 
 	time.Sleep(time.Millisecond * 500)
 
-	// Test2: receive stream of SMCCmds
+	// Start SMC advisor to bridge instructions sent by network to a SMC backend.
 	smcAdvisor := modules.NewSMCAdvisor(modInfo, p.smcConn)
 	// SpawnListener ends at the moment when finishing a SMC session.
 	// Need to respawn on time.
