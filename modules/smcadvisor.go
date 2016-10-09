@@ -23,6 +23,10 @@ func NewSMCAdvisor(modInfo ModuleContext, smcConnector smc.Connector) *SMCAdviso
 	}
 }
 
+func (s *SMCAdvisor) Start() {
+	go s.BlockingSpawn()
+}
+
 func (s *SMCAdvisor) BlockingSpawn() {
 	for {
 		if err := s.SpawnBridge(); err != nil {

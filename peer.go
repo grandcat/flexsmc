@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math"
 	"sync"
 	"time"
 
@@ -19,15 +20,22 @@ type RunState uint8
 
 const (
 	Discovery RunState = iota
+	Pairing
+	Resolving
 	Connecting
-	Connected
-	Running
+	Operating
 )
 
 type Peer struct {
 	srpc    *client.Client
 	smcConn smc.Connector
 	opts    PeerOptions
+
+	state     RunState
+	gclient   proto.GatewayClient
+	connRetry int
+	modInfo   modules.ModuleContext
+	modCancel context.CancelFunc
 }
 
 func NewPeer(opts PeerOptions) *Peer {
@@ -51,16 +59,48 @@ func (p *Peer) Init() {
 	}
 }
 
-func (p *Peer) StateMachine() {
+func (p *Peer) Operate() {
+	for {
+		log.Printf("Entering %+v", p.state)
+		switch p.state {
+		case Discovery:
+			// XXX: no discovery yet. Just go to next state
+			time.Sleep(time.Second * 1)
+			p.state = p.discover()
 
+		case Pairing:
+			p.state = p.startPairing()
+
+		case Resolving:
+			p.state = p.prepare()
+
+		case Connecting:
+			// Start services if connection is available:
+			// - Health report
+			// - SMC advisor
+			p.state = p.startService()
+
+		case Operating:
+			p.state = p.watchService()
+		}
+	}
 }
 
-func (p *Peer) Run() {
-	log.Println("Starting peer operation...")
-	// 1. Disover potential gateway
-	// XXX: assume fixed one for now
-	const peerID = "gw4242.flexsmc.local"
+func (p *Peer) discover() (next RunState) {
+	// If not known, initiate pairing
+	// knownGW := p.srpc.GetPeerCerts().ActivePeerCertificates(peerID)
+	knownGW := 1
+	if knownGW == 0 {
+		next = Pairing
 
+	} else {
+		next = Resolving
+	}
+	return
+}
+
+func (p *Peer) startPairing() (next RunState) {
+	const peerID = "gw4242.flexsmc.local"
 	// 2. Initiate pairing if it is an unknown identity (if desired)
 	// knownGW := p.srpc.GetPeerCerts().ActivePeerCertificates(peerID)
 	knownGW := 0
@@ -97,40 +137,79 @@ func (p *Peer) Run() {
 		}
 	}
 
+	next = Resolving
+	return
+}
+
+func (p *Peer) prepare() (next RunState) {
+	const peerID = "gw4242.flexsmc.local"
 	// Join the SMC network.
 	cc, err := p.srpc.Dial(peerID)
 	if err != nil {
-		log.Printf("Could not connect to GW node %s: %v", peerID, err)
+		log.Printf("Could not resolve or dial GW node %s: %v", peerID, err)
+		next = Discovery
 		return
 	}
-	c := proto.NewGatewayClient(cc)
+	p.gclient = proto.NewGatewayClient(cc)
+	next = Connecting
+	return
+}
 
-	ctxMods, cancelMods := context.WithTimeout(context.Background(), time.Second*120)
-	defer cancelMods()
-	modInfo := modules.ModuleContext{
-		Context:    ctxMods,
+func (p *Peer) startService() (next RunState) {
+	log.Println("Services:")
+
+	p.modInfo = modules.ModuleContext{
 		ActiveMods: &sync.WaitGroup{},
-		GWConn:     c,
+		GWConn:     p.gclient,
 	}
-
+	p.modInfo.Context, p.modCancel = context.WithCancel(context.Background())
 	// Start regular health report
-	healthMod := modules.NewHealthReporter(modInfo, time.Second*10)
+	healthMod := modules.NewHealthReporter(p.modInfo, time.Second*10)
+	if err := healthMod.Ping(); err != nil {
+		p.connRetry++
+		log.Println("[ ] Health ping")
+		// Watch failed connection attempts, retry or abort if unavailable
+		switch {
+		case 0 < p.connRetry && p.connRetry < 5:
+			timeout := math.Pow(2, float64(p.connRetry))
+			log.Printf("Retrying in %f seconds...", timeout)
+			time.Sleep(time.Second * time.Duration(timeout))
+			next = Connecting
+
+		case 5 <= p.connRetry:
+			p.connRetry = 0
+			next = Discovery
+		}
+		return
+	}
+	p.connRetry = 0
 	healthMod.Start()
+	log.Println("[x] Health ping")
 
 	time.Sleep(time.Millisecond * 500)
 
 	// Start SMC advisor to bridge instructions sent by network to a SMC backend.
-	smcAdvisor := modules.NewSMCAdvisor(modInfo, p.smcConn)
+	smcAdvisor := modules.NewSMCAdvisor(p.modInfo, p.smcConn)
 	// SpawnListener ends at the moment when finishing a SMC session.
 	// Need to respawn on time.
-	smcAdvisor.BlockingSpawn()
+	log.Println("[x] SMC advisor")
+	smcAdvisor.Start()
 
-	modInfo.ActiveMods.Wait()
-	// Reaching this point means either
-	// * the connection is lost (e.g. GW is done, different network)
-	// * context is done
-	cancelMods()
-	log.Println(">>Canceled mods two times")
+	next = Operating
+	return
+}
 
+func (p *Peer) watchService() (next RunState) {
+	p.modInfo.ActiveMods.Wait()
+	log.Println("Some services lost connection or crashed. Restarting for new connection.")
+	p.modCancel()
+	// p.srpc.TearDown()
+
+	next = Connecting
+	return
+}
+
+func (p *Peer) Run() {
+	p.Operate()
 	p.srpc.TearDown()
 }

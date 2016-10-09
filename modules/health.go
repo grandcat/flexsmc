@@ -21,10 +21,10 @@ func NewHealthReporter(modInfo ModuleContext, pingInterval time.Duration) *Healt
 
 func (h *HealthReporter) Start() {
 	h.ActiveMods.Add(1)
-	go h.report()
+	go h.reportloop()
 }
 
-func (h *HealthReporter) report() {
+func (h *HealthReporter) reportloop() {
 	defer h.ActiveMods.Done()
 
 	ticker := time.NewTicker(h.PingInterval)
@@ -32,13 +32,9 @@ func (h *HealthReporter) report() {
 
 	for {
 		// Ping
-		resp, err := h.GWConn.Ping(h.Context, &proto.SMCInfo{12345})
-		if err != nil {
-			log.Printf("Could not ping GW: %v", err)
+		if err := h.Ping(); err != nil {
 			return
 		}
-		log.Println("Ping resp:", resp.Status)
-
 		// Schedule next or abort
 		select {
 		case <-ticker.C:
@@ -50,4 +46,14 @@ func (h *HealthReporter) report() {
 			return
 		}
 	}
+}
+
+func (h *HealthReporter) Ping() error {
+	resp, err := h.GWConn.Ping(h.Context, &proto.SMCInfo{12345})
+	if err != nil {
+		log.Printf("Could not ping GW: %v", err)
+		return err
+	}
+	log.Println("Ping resp:", resp.Status)
+	return nil
 }
