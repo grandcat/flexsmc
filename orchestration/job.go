@@ -98,13 +98,13 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 	return nil
 }
 
-// removePeerChat closes and deletes the chats to these peers.
+// removePeerChatdeletes the chats to these peers.
 // It is essential to do so that a resubmitted job has a new chance to
 // initiate a new chat to a previously faulty peer.
 func (j *job) removePeerChats(peers []*directory.PeerInfo) {
 	for _, p := range peers {
 		j.chats[p.ID].Close()
-		delete(j.chats, p.ID)
+		// delete(j.chats, p.ID)
 	}
 }
 
