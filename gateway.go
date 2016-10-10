@@ -9,6 +9,7 @@ import (
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
 	"github.com/grandcat/flexsmc/directory"
 	"github.com/grandcat/flexsmc/orchestration"
+	"github.com/grandcat/flexsmc/orchestration/pipeline"
 	proto "github.com/grandcat/flexsmc/proto"
 	auth "github.com/grandcat/srpc/authentication"
 	"github.com/grandcat/srpc/pairing"
@@ -180,24 +181,22 @@ func (g *Gateway) Run() {
 		time.Sleep(time.Second * 10)
 		log.Println(">>GW: try sending message to peer")
 		comm := orchestration.NewPeerNetwork(g.reg)
+
+		pipe1 := &pipeline.OnlineFilter{Reg: g.reg}
+		pipe2 := &pipeline.PhaseBuilder{Reg: g.reg}
+		preprocess := pipeline.NewPipeline(pipe1, pipe2)
+
 		// n.reg.Watcher.AvailableNodes
 		// Declare message for transmission
 		for {
 			// Send job to online peers
-			p1 := &proto.SMCCmd{
-				State: proto.SMCCmd_PREPARE,
-				Payload: &proto.SMCCmd_Prepare{&proto.Prepare{
-					Participants: []*proto.Prepare_Participant{&proto.Prepare_Participant{Addr: "myAddr", Identity: "ident"}},
-				}},
-			}
-			p2 := &proto.SMCCmd{
-				State:   proto.SMCCmd_SESSION,
-				Payload: &proto.SMCCmd_Session{&proto.SessionPhase{}},
-			}
-			// Submit to online peers
 			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
 			defer cancel()
-			job, _ := comm.SubmitJob(jobTimeout, g.reg.Watcher.AvailablePeers(), []*proto.SMCCmd{p1, p2})
+
+			cmds, peers, _ := preprocess.Process(&proto.SMCTask{Set: "dummygroup"})
+			log.Println(">> Pipeline peers:", peers)
+			log.Println(">> Pipeline phases:", cmds)
+			job, _ := comm.SubmitJob(jobTimeout, peers, cmds)
 
 			resCnt := 0
 			for {
