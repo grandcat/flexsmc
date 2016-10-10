@@ -16,6 +16,8 @@ import (
 	"golang.org/x/net/context"
 )
 
+const RetryConnection = 5
+
 type RunState uint8
 
 const (
@@ -163,20 +165,21 @@ func (p *Peer) startService() (next RunState) {
 		GWConn:     p.gclient,
 	}
 	p.modInfo.Context, p.modCancel = context.WithCancel(context.Background())
-	// Start regular health report
+
+	// Health report
 	healthMod := modules.NewHealthReporter(p.modInfo, time.Second*10)
 	if err := healthMod.Ping(); err != nil {
 		p.connRetry++
 		log.Println("[ ] Health ping")
 		// Watch failed connection attempts, retry or abort if unavailable
 		switch {
-		case 0 < p.connRetry && p.connRetry < 5:
+		case 0 < p.connRetry && p.connRetry < RetryConnection:
 			timeout := math.Pow(2, float64(p.connRetry))
 			log.Printf("Retrying in %f seconds...", timeout)
 			time.Sleep(time.Second * time.Duration(timeout))
 			next = Connecting
 
-		case 5 <= p.connRetry:
+		case RetryConnection <= p.connRetry:
 			p.connRetry = 0
 			next = Discovery
 		}
