@@ -30,6 +30,8 @@ func (s *SMCAdvisor) Start() {
 func (s *SMCAdvisor) BlockingSpawn() {
 	for {
 		if err := s.SpawnBridge(); err != nil {
+			// Notify master about unhandled error.
+			s.faults <- err
 			break
 		}
 		time.Sleep(time.Second)

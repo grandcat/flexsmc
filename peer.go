@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"sync"
 	"time"
 
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
@@ -34,8 +33,10 @@ type Peer struct {
 	opts    PeerOptions
 
 	state     RunState
-	gclient   proto.GatewayClient
 	connRetry int
+	faults    int
+
+	gclient   proto.GatewayClient
 	modInfo   modules.ModuleContext
 	modCancel context.CancelFunc
 }
@@ -160,11 +161,9 @@ func (p *Peer) prepare() (next RunState) {
 func (p *Peer) startService() (next RunState) {
 	log.Println("Services:")
 
-	p.modInfo = modules.ModuleContext{
-		ActiveMods: &sync.WaitGroup{},
-		GWConn:     p.gclient,
-	}
-	p.modInfo.Context, p.modCancel = context.WithCancel(context.Background())
+	var modCtx context.Context
+	modCtx, p.modCancel = context.WithCancel(context.Background())
+	p.modInfo = modules.NewModuleContext(modCtx, p.gclient)
 
 	// Health report
 	healthMod := modules.NewHealthReporter(p.modInfo, time.Second*10)
@@ -203,9 +202,14 @@ func (p *Peer) startService() (next RunState) {
 }
 
 func (p *Peer) watchService() (next RunState) {
-	p.modInfo.ActiveMods.Wait()
-	log.Println("Some services lost connection or crashed. Restarting for new connection.")
+	if modErr, ok := <-p.modInfo.Faults(); ok {
+		log.Printf("A module cannot recover from: %v", modErr.Error())
+	}
+	// Cancel all running modules for a fresh connection.
+	p.faults++
 	p.modCancel()
+	p.modInfo.WaitAll()
+	log.Printf("!!! %d module faults so far. Restarting all modules with new connection.", p.faults)
 	// p.srpc.TearDown()
 
 	next = Connecting
