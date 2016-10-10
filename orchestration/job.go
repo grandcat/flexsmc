@@ -28,9 +28,11 @@ type JobWatcher interface {
 	Err() *PeerError
 }
 
+type TaskPhase int
+
 type PeerResult struct {
-	PhaseProgress int
-	Response      *proto.CmdResult
+	Progress TaskPhase
+	Response *proto.CmdResult
 }
 
 type job struct {
@@ -41,8 +43,8 @@ type job struct {
 	ctx   context.Context
 	instr JobInstruction
 	// Context for worker processing this job
-	phaseProgress int
-	chats         map[auth.PeerID]directory.ChatWithPeer
+	progress TaskPhase
+	chats    map[auth.PeerID]directory.ChatWithPeer
 }
 
 func newJob(ctx context.Context, instruction JobInstruction) *job {
@@ -94,7 +96,7 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 	}
 
 	if len(errPeers) > 0 {
-		return NewPeerErr(ctx.Err(), errPeers)
+		return NewPeerErr(ctx.Err(), j.progress, errPeers)
 	}
 	return nil
 }
@@ -149,7 +151,7 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *proto.SMCCmd) ([]*proto
 	var err *PeerError
 	if len(errPeers) > 0 {
 		j.removePeerChats(errPeers)
-		err = NewPeerErr(errCtxOrStreamFailure, errPeers)
+		err = NewPeerErr(errCtxOrStreamFailure, j.progress, errPeers)
 	}
 	return resps, err
 }
@@ -177,20 +179,20 @@ func pullRespUntilDone(ctx context.Context, in <-chan *proto.CmdResult) (*proto.
 }
 
 func (j *job) remainingTasks() []*proto.SMCCmd {
-	if j.phaseProgress >= len(j.instr.Tasks) {
+	if int(j.progress) >= len(j.instr.Tasks) {
 		return []*proto.SMCCmd{}
 	}
-	return j.instr.Tasks[j.phaseProgress:]
+	return j.instr.Tasks[j.progress:]
 }
 
 func (j *job) incProgress() {
-	j.phaseProgress++
+	j.progress++
 }
 
 // API facing job originator for interaction
 
 func (j *job) sendFeedback(resp *proto.CmdResult) {
-	j.feedback <- PeerResult{PhaseProgress: j.phaseProgress, Response: resp}
+	j.feedback <- PeerResult{Progress: j.progress, Response: resp}
 }
 
 func (j *job) abort(e *PeerError) {

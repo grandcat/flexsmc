@@ -3,15 +3,16 @@ package orchestration
 import "github.com/grandcat/flexsmc/directory"
 
 type PeerError struct {
-	SMCPhase uint8
+	Progress TaskPhase
 	Peers    []*directory.PeerInfo
 	Err      error
 }
 
-func NewPeerErr(e error, peers []*directory.PeerInfo) *PeerError {
+func NewPeerErr(e error, progress TaskPhase, peers []*directory.PeerInfo) *PeerError {
 	return &PeerError{
-		Err:   e,
-		Peers: peers,
+		Err:      e,
+		Progress: progress,
+		Peers:    peers,
 	}
 }
 
