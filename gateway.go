@@ -186,10 +186,8 @@ func (g *Gateway) Run() {
 		pipe2 := &pipeline.PhaseBuilder{Reg: g.reg}
 		preprocess := pipeline.NewPipeline(pipe1, pipe2)
 
-		// n.reg.Watcher.AvailableNodes
-		// Declare message for transmission
+		// Send job to online peers
 		for {
-			// Send job to online peers
 			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
 			defer cancel()
 

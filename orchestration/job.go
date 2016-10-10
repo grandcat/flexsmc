@@ -12,9 +12,8 @@ import (
 )
 
 type JobInstruction struct {
-	Context context.Context
-	Targets []*directory.PeerInfo
 	Tasks   []*proto.SMCCmd
+	Targets []*directory.PeerInfo
 }
 
 type JobWatcher interface {
@@ -39,15 +38,17 @@ type job struct {
 	lastErr  *PeerError
 	mu       sync.Mutex
 	// Instruction with job context, target peers and their task to do
+	ctx   context.Context
 	instr JobInstruction
 	// Context for worker processing this job
 	phaseProgress int
 	chats         map[auth.PeerID]directory.ChatWithPeer
 }
 
-func newJob(instruction JobInstruction) *job {
+func newJob(ctx context.Context, instruction JobInstruction) *job {
 	return &job{
 		feedback: make(chan PeerResult),
+		ctx:      ctx,
 		instr:    instruction,
 	}
 }

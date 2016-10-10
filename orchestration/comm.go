@@ -31,11 +31,10 @@ func NewPeerNetwork(r *directory.Registry) *PeerNetwork {
 
 func (pc *PeerNetwork) SubmitJob(ctx context.Context, dest []*directory.PeerInfo, tasks []*proto.SMCCmd) (JobWatcher, error) {
 	instr := JobInstruction{
-		Context: ctx,
-		Targets: dest,
 		Tasks:   tasks,
+		Targets: dest,
 	}
-	j := newJob(instr)
+	j := newJob(ctx, instr)
 	// Enqueue for worker pool
 	select {
 	case pc.jobs <- j:
@@ -78,7 +77,7 @@ func processJob(j *job) {
 	// Work through all phases
 	cmds := j.remainingTasks()
 	for _, t := range cmds {
-		results, err := j.queryTargetsSync(j.instr.Context, t)
+		results, err := j.queryTargetsSync(j.ctx, t)
 		// Send back results if there are any
 		// XXX: replace with direct routing of results to the client
 		for _, r := range results {
