@@ -24,6 +24,17 @@ func NewModuleContext(ctx context.Context, gwConn proto.GatewayClient) ModuleCon
 	}
 }
 
+func (m ModuleContext) reportFault(err error) {
+	select {
+	case m.faults <- err:
+		// Submitted successfully
+	case <-m.Context.Done():
+		// In case another module caused canceling all modules, the fault channel
+		// might not be checked anymore. So it would block the calling module.
+		// Release this go routine here to prevent such a situation.
+	}
+}
+
 func (m ModuleContext) Faults() <-chan error {
 	return m.faults
 }
