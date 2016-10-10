@@ -1,17 +1,12 @@
 package pipeline
 
 import (
-	"github.com/grandcat/flexsmc/directory"
+	"github.com/grandcat/flexsmc/orchestration"
 	proto "github.com/grandcat/flexsmc/proto"
 )
 
-type ProtoStack struct {
-	Phases       []*proto.SMCCmd
-	Participants []*directory.PeerInfo
-}
-
 type Pipe interface {
-	Process(task *proto.SMCTask, inOut *ProtoStack) error
+	Process(task *proto.SMCTask, inOut *orchestration.JobInstruction) error
 }
 
 type Pipeline struct {
@@ -25,16 +20,13 @@ func NewPipeline(pipes ...Pipe) *Pipeline {
 	return p
 }
 
-func (p *Pipeline) Process(task *proto.SMCTask) (phases []*proto.SMCCmd, peers []*directory.PeerInfo, err error) {
-	changeset := &ProtoStack{}
+func (p *Pipeline) Process(task *proto.SMCTask) (*orchestration.JobInstruction, error) {
+	changeset := &orchestration.JobInstruction{}
 	for _, pipe := range p.pipes {
-		err = pipe.Process(task, changeset)
+		err := pipe.Process(task, changeset)
 		if err != nil {
-			return
+			return nil, err
 		}
 	}
-
-	phases = changeset.Phases
-	peers = changeset.Participants
-	return
+	return changeset, nil
 }

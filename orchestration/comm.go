@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/grandcat/flexsmc/directory"
-	proto "github.com/grandcat/flexsmc/proto"
 )
 
 type PeerNetwork struct {
@@ -29,12 +28,8 @@ func NewPeerNetwork(r *directory.Registry) *PeerNetwork {
 	return pc
 }
 
-func (pc *PeerNetwork) SubmitJob(ctx context.Context, dest []*directory.PeerInfo, tasks []*proto.SMCCmd) (JobWatcher, error) {
-	instr := JobInstruction{
-		Tasks:   tasks,
-		Targets: dest,
-	}
-	j := newJob(ctx, instr)
+func (pc *PeerNetwork) SubmitJob(ctx context.Context, description JobInstruction) (JobWatcher, error) {
+	j := newJob(ctx, description)
 	// Enqueue for worker pool
 	select {
 	case pc.jobs <- j:

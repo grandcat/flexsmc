@@ -191,10 +191,10 @@ func (g *Gateway) Run() {
 			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
 			defer cancel()
 
-			cmds, peers, _ := preprocess.Process(&proto.SMCTask{Set: "dummygroup"})
-			log.Println(">> Pipeline peers:", peers)
-			log.Println(">> Pipeline phases:", cmds)
-			job, _ := comm.SubmitJob(jobTimeout, peers, cmds)
+			instr, _ := preprocess.Process(&proto.SMCTask{Set: "dummygroup"})
+			log.Println(">> Pipeline peers:", instr.Targets)
+			log.Println(">> Pipeline phases:", instr.Tasks)
+			job, _ := comm.SubmitJob(jobTimeout, *instr)
 
 			resCnt := 0
 			for {
