@@ -19,7 +19,7 @@ func (b *PhaseBuilder) Process(task *proto.SMCTask, inOut *orchestration.JobInst
 
 	// Prepare phase
 	var participants []*proto.Prepare_Participant
-	for _, p := range inOut.Targets {
+	for _, p := range inOut.Participants {
 		participants = append(participants, &proto.Prepare_Participant{Identity: string(p.ID), Addr: p.Addr.String()})
 	}
 

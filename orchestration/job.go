@@ -12,8 +12,8 @@ import (
 )
 
 type JobInstruction struct {
-	Tasks   []*proto.SMCCmd
-	Targets []*directory.PeerInfo
+	Tasks        []*proto.SMCCmd
+	Participants []*directory.PeerInfo
 }
 
 type JobWatcher interface {
@@ -76,10 +76,10 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 	var errPeers []*directory.PeerInfo
 
 	if j.chats == nil {
-		j.chats = make(map[auth.PeerID]directory.ChatWithPeer, len(j.instr.Targets))
+		j.chats = make(map[auth.PeerID]directory.ChatWithPeer, len(j.instr.Participants))
 	}
 
-	for _, p := range j.instr.Targets {
+	for _, p := range j.instr.Participants {
 		if _, exists := j.chats[p.ID]; exists {
 			continue
 		}

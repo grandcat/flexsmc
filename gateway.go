@@ -192,7 +192,7 @@ func (g *Gateway) Run() {
 			defer cancel()
 
 			instr, _ := preprocess.Process(&proto.SMCTask{Set: "dummygroup"})
-			log.Println(">> Pipeline peers:", instr.Targets)
+			log.Println(">> Pipeline peers:", instr.Participants)
 			log.Println(">> Pipeline phases:", instr.Tasks)
 			job, _ := comm.SubmitJob(jobTimeout, *instr)
 

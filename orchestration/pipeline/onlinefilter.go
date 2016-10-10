@@ -12,6 +12,6 @@ type OnlineFilter struct {
 
 func (o *OnlineFilter) Process(task *proto.SMCTask, inOut *orchestration.JobInstruction) error {
 	// XXX: use all available (online) peers for now
-	inOut.Targets = o.Reg.Watcher.AvailablePeers()
+	inOut.Participants = o.Reg.Watcher.AvailablePeers()
 	return nil
 }
