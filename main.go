@@ -1,6 +1,10 @@
 package main
 
-import "flag"
+import (
+	"flag"
+
+	"github.com/grandcat/flexsmc/directory"
+)
 
 var (
 	isGateway = flag.Bool("gateway", false, "Set to true to run this node as a gateway")
@@ -17,9 +21,11 @@ func runGateway() {
 			KeyFile:  *keyFile,
 			NodeInfo: *peerInfo,
 		},
+		Registry: directory.NewRegistry(),
 	}
 	gw := NewGateway(opts)
 	gw.Run()
+
 }
 
 // runPeer starts a regular SMC peer node. It looks for an interesting gateway with matching properties,
