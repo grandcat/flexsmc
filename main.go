@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"log"
+	"time"
 
 	"github.com/grandcat/flexsmc/directory"
+	"github.com/grandcat/flexsmc/orchestration"
+	proto "github.com/grandcat/flexsmc/proto"
 )
 
 var (
@@ -15,17 +20,34 @@ var (
 )
 
 func runGateway() {
+	registry := directory.NewRegistry()
+
 	opts := GWOptions{
 		Options: Options{
 			CertFile: *certFile,
 			KeyFile:  *keyFile,
 			NodeInfo: *peerInfo,
 		},
-		Registry: directory.NewRegistry(),
+		Registry: registry,
 	}
 	gw := NewGateway(opts)
-	gw.Run()
+	// Invoke some fake client requests
+	orchestration := orchestration.NewFIFOOrchestration(registry)
+	go func() {
+		for {
+			time.Sleep(time.Second * 10)
+			log.Println(">>GW: submit SMC task to worker pool")
 
+			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
+			orchestration.Request(jobTimeout, &proto.SMCTask{Set: "dummygroup"})
+
+			// XXX: prevent memory leak, so release resources when done.
+			cancel()
+		}
+	}()
+
+	// Start (blocking) GW operation
+	gw.Run()
 }
 
 // runPeer starts a regular SMC peer node. It looks for an interesting gateway with matching properties,

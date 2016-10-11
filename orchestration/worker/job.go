@@ -1,4 +1,4 @@
-package orchestration
+package worker
 
 import (
 	"context"

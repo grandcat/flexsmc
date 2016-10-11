@@ -3,16 +3,14 @@ package pipeline
 import (
 	"errors"
 
-	"github.com/grandcat/flexsmc/directory"
-	"github.com/grandcat/flexsmc/orchestration"
+	"github.com/grandcat/flexsmc/orchestration/worker"
 	proto "github.com/grandcat/flexsmc/proto"
 )
 
 type PhaseBuilder struct {
-	Reg *directory.Registry
 }
 
-func (b *PhaseBuilder) Process(task *proto.SMCTask, inOut *orchestration.JobInstruction) error {
+func (b *PhaseBuilder) Process(task *proto.SMCTask, inOut *worker.JobInstruction) error {
 	if len(inOut.Tasks) > 0 {
 		return errors.New("expect no SMC phases before running PhaseBuilder")
 	}

@@ -1,4 +1,4 @@
-package orchestration
+package worker
 
 import "github.com/grandcat/flexsmc/directory"
 

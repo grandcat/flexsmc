@@ -8,8 +8,6 @@ import (
 
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
 	"github.com/grandcat/flexsmc/directory"
-	"github.com/grandcat/flexsmc/orchestration"
-	"github.com/grandcat/flexsmc/orchestration/pipeline"
 	proto "github.com/grandcat/flexsmc/proto"
 	auth "github.com/grandcat/srpc/authentication"
 	"github.com/grandcat/srpc/pairing"
@@ -173,40 +171,6 @@ func (g *Gateway) Run() {
 				time.Sleep(time.Second * 2) //< Simulate an out-of-band verification. Takes some time...
 				pID.Accept()
 			}
-		}
-
-	}()
-	// XXX: send msg to peers
-	go func() {
-		time.Sleep(time.Second * 10)
-		log.Println(">>GW: try sending message to peer")
-		comm := orchestration.NewPeerNetwork(g.reg)
-
-		pipe1 := &pipeline.OnlineFilter{Reg: g.reg}
-		pipe2 := &pipeline.PhaseBuilder{Reg: g.reg}
-		preprocess := pipeline.NewPipeline(pipe1, pipe2)
-
-		// Send job to online peers
-		for {
-			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
-			defer cancel()
-
-			instr, _ := preprocess.Process(&proto.SMCTask{Set: "dummygroup"})
-			log.Println(">> Pipeline peers:", instr.Participants)
-			log.Println(">> Pipeline phases:", instr.Tasks)
-			job, _ := comm.SubmitJob(jobTimeout, *instr)
-
-			resCnt := 0
-			for {
-				res, ok := <-job.Result()
-				if !ok {
-					log.Println(">> GW: feedback channel closed:", job.Err())
-					break
-				}
-				log.Printf(">> GW: RESULT FROM PEER[%d]: %v", resCnt, res)
-				resCnt++
-			}
-			time.Sleep(time.Second * 7)
 		}
 
 	}()
