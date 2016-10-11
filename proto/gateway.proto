@@ -94,10 +94,15 @@ message CmdResult {
         // Communication related errors
         STREAM_ERR  = 128;
     }
-    Status status = 1;
-    string msg    = 2;
+    Status status    = 1;
+    string msg       = 2;
+    SMCResult result = 3;
     // Partly filled on receiver side (e.g. peer ID)
-    map<string, string> metadata = 3;
+    map<string, string> metadata = 7;
+}
+
+message SMCResult {
+    repeated double res = 1;
 }
 
 enum MetadataKey {
