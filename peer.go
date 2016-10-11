@@ -209,7 +209,7 @@ func (p *Peer) watchService() (next RunState) {
 	p.faults++
 	p.modCancel()
 	p.modInfo.WaitAll()
-	log.Printf("!!! %d module faults so far. Restarting all modules with new connection.", p.faults)
+	log.Printf("!!! %d faults by modules so far. Restarting all modules with new connection.", p.faults)
 	// p.srpc.TearDown()
 
 	next = Connecting
