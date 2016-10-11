@@ -17,6 +17,8 @@ type JobInstruction struct {
 }
 
 type JobWatcher interface {
+	// Job returns the instruction associated with this job.
+	Job() JobInstruction
 	// Result is a stream of responses sent by their peers.
 	// To differentiate multiple protocol phases, each result carries
 	// the current progress.
@@ -53,6 +55,10 @@ func newJob(ctx context.Context, instruction JobInstruction) *job {
 		ctx:      ctx,
 		instr:    instruction,
 	}
+}
+
+func (j *job) Job() JobInstruction {
+	return j.instr
 }
 
 func (j *job) Result() <-chan PeerResult {
