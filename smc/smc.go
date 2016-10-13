@@ -146,6 +146,7 @@ func (s *smcSessionMock) doSession(info *proto.SessionPhase) *proto.CmdResult {
 	res := &proto.CmdResult{
 		Status: proto.CmdResult_SUCCESS,
 		Msg:    "->proto.Session: nice, but I am stupid",
+		Result: &proto.SMCResult{Res: 1234},
 	}
 	// We're doing hard work :)
 	// time.Sleep(time.Second * 1)

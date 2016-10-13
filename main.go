@@ -39,7 +39,8 @@ func runGateway() {
 			log.Println(">>GW: submit SMC task to worker pool")
 
 			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
-			orchestration.Request(jobTimeout, &proto.SMCTask{Set: "dummygroup"})
+			res, err := orchestration.Request(jobTimeout, &proto.SMCTask{Set: "dummygroup"})
+			log.Printf("END RES:\n%v [Error: %v]", res, err)
 
 			// XXX: prevent memory leak, so release resources when done.
 			cancel()
