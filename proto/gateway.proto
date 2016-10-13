@@ -101,7 +101,7 @@ message CmdResult {
 }
 
 message SMCResult {
-    repeated double res = 1;
+    double res = 1;
 }
 
 enum MetadataKey {
