@@ -82,9 +82,12 @@ type smcSessionMock struct {
 	tearedDown bool
 }
 
+const initPhase = -1
+
 func (s *smcSessionMock) Init(ctx context.Context, id uint64) {
 	s.ctx = ctx
 	s.id = id
+	s.phase = initPhase
 }
 
 func (s *smcSessionMock) ID() uint64 {
@@ -185,7 +188,7 @@ func (s *smcSessionMock) allowPhaseTransition(newPhase proto.SMCCmd_Phase) bool 
 	switch newPhase {
 	case proto.SMCCmd_PREPARE:
 		switch s.phase {
-		case proto.SMCCmd_INIT, proto.SMCCmd_SESSION:
+		case initPhase, proto.SMCCmd_SESSION:
 			allow = true
 		}
 

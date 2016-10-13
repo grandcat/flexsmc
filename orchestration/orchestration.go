@@ -38,7 +38,7 @@ func NewFIFOOrchestration(reg *directory.Registry) Orchestration {
 }
 
 func (fo *FifoOrchestration) Request(ctx context.Context, task *proto.SMCTask) (*proto.SMCResult, error) {
-	// 1. Transform task to set of instructions (shuld not block)
+	// 1. Transform task to set of instructions (should not block)
 	jobInstr, err := fo.prePipe.Process(task)
 	if err != nil {
 		log.Printf("Orchestration: preprocess pipeline failed: %v", err.Error())

@@ -30,7 +30,7 @@ type JobWatcher interface {
 	Err() *PeerError
 }
 
-type TaskPhase int
+type TaskPhase int32 //< slightly coupled to proto.SMCCmd_Phase
 
 type PeerResult struct {
 	Progress TaskPhase

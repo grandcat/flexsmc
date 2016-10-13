@@ -23,9 +23,8 @@ message SMCInfo {
 message SMCCmd {
     uint64 sessionID    = 1;
     enum Phase {
-        INIT     = 0;
-        PREPARE  = 1;
-        SESSION  = 2;
+        PREPARE  = 0;
+        SESSION  = 1;
         // ...
         FINISH = 126;
         ABORT    = 127;
