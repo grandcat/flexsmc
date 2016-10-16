@@ -112,8 +112,8 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 // initiate a new chat to a previously faulty peer.
 func (j *job) removePeerChats(peers []*directory.PeerInfo) {
 	for _, p := range peers {
-		j.chats[p.ID].Close()
-		// delete(j.chats, p.ID)
+		// j.chats[p.ID].Close()
+		delete(j.chats, p.ID)
 	}
 }
 
@@ -163,6 +163,7 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *proto.SMCCmd) ([]*proto
 }
 
 var ErrEmptyChannel = errors.New("input channel is empty")
+var ErrChanClosed = errors.New("peer chan closed")
 
 func pullRespUntilDone(ctx context.Context, in <-chan *proto.CmdResult) (*proto.CmdResult, error) {
 	// Context timeout or abort: only collect result if available immediately
@@ -176,7 +177,10 @@ func pullRespUntilDone(ctx context.Context, in <-chan *proto.CmdResult) (*proto.
 	}
 	// Default: still time left to wait for results
 	select {
-	case resp := <-in:
+	case resp, ok := <-in:
+		if !ok {
+			return resp, ErrChanClosed
+		}
 		return resp, nil
 
 	case <-ctx.Done():
