@@ -60,17 +60,14 @@ func (d *Registry) Get(id auth.PeerID) (*PeerInfo, error) {
 	return p, nil
 }
 
-// BroadcastMsg sends a message to the listed receivers.
-// Peers that are currently not reachable, are ignored. No recovery.
-// func (d *Registry) BroadcastMsg(rcvs []auth.PeerID, m interface{}) {
-// 	// d.mu.RLock()
-// 	// defer d.mu.RUnlock()
+func (d *Registry) GetAll() []*PeerInfo {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 
-// 	// Intersect with peers online before transmission
-// 	for _, pID := range rcvs {
-// 		if p, ok := d.readyPeers[pID]; ok {
-// 			p.tx <- m
-// 			log.Printf(">> Msg for %s: %v", pID, m)
-// 		}
-// 	}
-// }
+	var peers []*PeerInfo
+	for _, p := range d.peers {
+		peers = append(peers, p)
+	}
+
+	return peers
+}

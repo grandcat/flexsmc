@@ -89,13 +89,13 @@ func (w *peerWatcher) Notifications() chan<- stateChange {
 	return w.notifies
 }
 
-func (w *peerWatcher) AvailablePeers() []*PeerInfo {
+func (w *peerWatcher) AvailablePeers() map[auth.PeerID]struct{} {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	nodes := make([]*PeerInfo, 0, len(w.peersOn))
+	nodes := make(map[auth.PeerID]struct{}, len(w.peersOn))
 	for _, ps := range w.peersOn {
-		nodes = append(nodes, ps.peer)
+		nodes[ps.peer.ID] = struct{}{}
 	}
 
 	return nodes

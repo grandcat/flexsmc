@@ -25,9 +25,10 @@ type FifoOrchestration struct {
 
 func NewFIFOOrchestration(reg *directory.Registry) Orchestration {
 	// Init preprocessing pipeline
+	pipe0 := &pipeline.GroupMap{Reg: reg}
 	pipe1 := &pipeline.OnlineFilter{Reg: reg}
 	pipe2 := &pipeline.PhaseBuilder{}
-	processInput := pipeline.NewPipeline(pipe1, pipe2)
+	processInput := pipeline.NewPipeline(pipe0, pipe1, pipe2)
 
 	return &FifoOrchestration{
 		reg:      reg,
