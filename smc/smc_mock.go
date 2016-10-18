@@ -3,6 +3,7 @@ package smc
 import (
 	"errors"
 	"log"
+	"time"
 
 	proto "github.com/grandcat/flexsmc/proto"
 	"golang.org/x/net/context"
@@ -124,7 +125,7 @@ func (s *smcSessionMock) doSession(info *proto.SessionPhase) *proto.CmdResult {
 		Result: &proto.SMCResult{Res: 1234},
 	}
 	// We're doing hard work :)
-	// time.Sleep(time.Second * 1)
+	time.Sleep(time.Second * 5)
 
 	// Already tear down here to give the communication layer a chance bringing up
 	// another SMC quickly. By overlapping the sessions a bit, processing a batch
