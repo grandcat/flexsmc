@@ -6,6 +6,7 @@ import (
 	"time"
 
 	proto "github.com/grandcat/flexsmc/proto"
+	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"golang.org/x/net/context"
 )
 
@@ -107,7 +108,7 @@ func (s *smcSessionMock) NextCmd(in *proto.SMCCmd) (out *proto.CmdResult, more b
 	return
 }
 
-func (s *smcSessionMock) doPrepare(info *proto.Prepare) *proto.CmdResult {
+func (s *smcSessionMock) doPrepare(info *pbJob.Prepare) *proto.CmdResult {
 	res := &proto.CmdResult{
 		Status: proto.CmdResult_SUCCESS,
 		Msg:    "->proto.Prepare: nice, but I am stupid",
@@ -118,7 +119,7 @@ func (s *smcSessionMock) doPrepare(info *proto.Prepare) *proto.CmdResult {
 	return res
 }
 
-func (s *smcSessionMock) doSession(info *proto.SessionPhase) *proto.CmdResult {
+func (s *smcSessionMock) doSession(info *pbJob.SessionPhase) *proto.CmdResult {
 	res := &proto.CmdResult{
 		Status: proto.CmdResult_SUCCESS,
 		Msg:    "->proto.Session: nice, but I am stupid",

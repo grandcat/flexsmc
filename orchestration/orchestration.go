@@ -8,11 +8,12 @@ import (
 	"github.com/grandcat/flexsmc/orchestration/pipeline"
 	"github.com/grandcat/flexsmc/orchestration/worker"
 	proto "github.com/grandcat/flexsmc/proto"
+	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"golang.org/x/net/context"
 )
 
 type Orchestration interface {
-	Request(ctx context.Context, task *proto.SMCTask) (*proto.SMCResult, error)
+	Request(ctx context.Context, task *pbJob.SMCTask) (*proto.SMCResult, error)
 }
 
 // FifoOrchestration is thread-safe.
@@ -38,7 +39,7 @@ func NewFIFOOrchestration(reg *directory.Registry) Orchestration {
 	}
 }
 
-func (fo *FifoOrchestration) Request(ctx context.Context, task *proto.SMCTask) (*proto.SMCResult, error) {
+func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (*proto.SMCResult, error) {
 	// 1. Transform task to set of instructions (should not block)
 	jobInstr, err := fo.prePipe.Process(task)
 	if err != nil {

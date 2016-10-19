@@ -3,14 +3,14 @@ package pipeline
 import (
 	"github.com/grandcat/flexsmc/directory"
 	"github.com/grandcat/flexsmc/orchestration/worker"
-	proto "github.com/grandcat/flexsmc/proto"
+	pbJob "github.com/grandcat/flexsmc/proto/job"
 )
 
 type OnlineFilter struct {
 	Reg *directory.Registry
 }
 
-func (o *OnlineFilter) Process(task *proto.SMCTask, inOut *worker.JobInstruction) error {
+func (o *OnlineFilter) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction) error {
 	peersOn := o.Reg.Watcher.AvailablePeers()
 	// Filter list of participants in-place
 	filteredPeers := inOut.Participants[:0]
