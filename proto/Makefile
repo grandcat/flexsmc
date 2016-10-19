@@ -1,4 +1,13 @@
-all: protoc_internal_rpc
+all: rpc_all
 
-protoc_internal_rpc: gateway.proto
-	protoc --go_out=plugins=grpc:. gateway.proto
+GOFILES = \
+	gateway.pb.go \
+	job/job.pb.go
+
+%.pb.go: %.proto
+	protoc --go_out=plugins=grpc:. -I .:$(GOPATH)/src $*.proto
+
+rpc_all: $(GOFILES)
+
+clean:
+	rm ${GOFILES}

@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package job;
+
+option java_multiple_files = true;
+option java_package = "dk.alexandra.fresco.demo";
+option java_outer_classname = "Task";
+
+import "google/protobuf/timestamp.proto";
+
+enum DataOrigin {
+    TEMPERATURE  = 0;
+    HUMIDITY     = 1;
+    AMBIENT      = 2;
+    AIR_PRESSURE = 3;
+
+    PRESENCE     = 10;
+
+    // Dynamically assigned sensor types.
+    RESERVED_999             = 999;
+    DYNAMIC_ASSIGNMENT_1000  = 1000;
+    // ...
+    DYNAMIC_ASSIGNMENT_99999 = 99999;
+    RESERVED_100000          = 100000;
+}
+
+enum Aggregator {
+    SUM             = 0;
+    AVG             = 1;
+    MEDIAN          = 2;
+    STD_DEVIATION   = 3;
+}
+
+message SMCTask {
+    string Set            = 1;
+    DataOrigin source     = 2;
+    // (Pre)Selectors
+    Aggregator aggregator = 4;
+    string ticketSignature           = 7;
+
+    google.protobuf.Timestamp issued = 8;
+    string querySignature            = 9;
+}
+
+message Prepare {
+    message Participant {
+        string identity = 1;
+        string addr     = 2;
+    }
+    repeated Participant participants = 1;
+    SMCTask smcTask                   = 2;
+}
+
+message SessionPhase {
+
+}
