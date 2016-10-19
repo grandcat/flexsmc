@@ -42,7 +42,7 @@ message SMCTask {
     string querySignature            = 9;
 }
 
-message Prepare {
+message PreparePhase {
     message Participant {
         string identity = 1;
         string addr     = 2;

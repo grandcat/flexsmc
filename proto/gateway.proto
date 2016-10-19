@@ -32,7 +32,7 @@ message SMCCmd {
     Phase state         = 2;
     // Payload packet
     oneof payload {
-        job.Prepare prepare = 3;
+        job.PreparePhase prepare = 3;
         job.SessionPhase session = 4;
     }
 }

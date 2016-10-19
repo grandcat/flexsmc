@@ -17,14 +17,14 @@ func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 	}
 
 	// Prepare phase
-	var participants []*pbJob.Prepare_Participant
+	var participants []*pbJob.PreparePhase_Participant
 	for _, p := range inOut.Participants {
-		participants = append(participants, &pbJob.Prepare_Participant{Identity: string(p.ID), Addr: p.Addr.String()})
+		participants = append(participants, &pbJob.PreparePhase_Participant{Identity: string(p.ID), Addr: p.Addr.String()})
 	}
 
 	p1 := &proto.SMCCmd{
 		State: proto.SMCCmd_PREPARE,
-		Payload: &proto.SMCCmd_Prepare{Prepare: &pbJob.Prepare{
+		Payload: &proto.SMCCmd_Prepare{Prepare: &pbJob.PreparePhase{
 			SmcTask:      task,
 			Participants: participants,
 		}},

@@ -108,7 +108,7 @@ func (s *smcSessionMock) NextCmd(in *proto.SMCCmd) (out *proto.CmdResult, more b
 	return
 }
 
-func (s *smcSessionMock) doPrepare(info *pbJob.Prepare) *proto.CmdResult {
+func (s *smcSessionMock) doPrepare(info *pbJob.PreparePhase) *proto.CmdResult {
 	res := &proto.CmdResult{
 		Status: proto.CmdResult_SUCCESS,
 		Msg:    "->proto.Prepare: nice, but I am stupid",
