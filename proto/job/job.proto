@@ -4,7 +4,8 @@ package job;
 
 option java_multiple_files = true;
 option java_package = "dk.alexandra.fresco.demo";
-option java_outer_classname = "Task";
+option java_outer_classname = "Job";
+option objc_class_prefix = "JOB";
 
 import "google/protobuf/timestamp.proto";
 
@@ -41,6 +42,8 @@ message SMCTask {
     google.protobuf.Timestamp issued = 8;
     string querySignature            = 9;
 }
+
+// Job phases
 
 message PreparePhase {
     message Participant {
