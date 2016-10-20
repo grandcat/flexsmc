@@ -38,19 +38,13 @@ option objc_class_prefix = "HLW";
 
 import "github.com/grandcat/flexsmc/proto/job/job.proto";
 
-// The greeting service definition.
-service Greeter {
-  // Sends a greeting
-  rpc SayHello (HelloRequest) returns (HelloReply) {}
+service SMC {
+  rpc Init (SessionCtx) returns (job.CmdResult) {}
   rpc DoPrepare (job.PreparePhase) returns (job.CmdResult) {}
+  rpc DoSession (job.SessionPhase) returns (job.CmdResult) {}
+  rpc TearDown (SessionCtx) returns (job.CmdResult) {}
 }
 
-// The request message containing the user's name.
-message HelloRequest {
-  string name = 1;
-}
-
-// The response message containing the greetings
-message HelloReply {
-  string message = 1;
+message SessionCtx {
+  uint64 sessionID = 1;
 }

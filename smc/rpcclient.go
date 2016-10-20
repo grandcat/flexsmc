@@ -21,13 +21,16 @@ func connect() {
 	}
 	defer conn.Close()
 
-	c := proto.NewGreeterClient(conn)
-	r, err := c.SayHello(context.Background(), &proto.HelloRequest{Name: defaultName})
-	if err != nil {
-		log.Fatalf("could not greet: %v", err)
-	}
-	log.Printf("Greeting: %s", r.Message)
+	c := proto.NewSMCClient(conn)
 
+	// 1. Init
+	r, err := c.Init(context.Background(), &proto.SessionCtx{SessionID: 1234})
+	if err != nil {
+		log.Fatalf("could not SMC Init: %v", err)
+	}
+	log.Printf("Init: %s", r)
+
+	// 2. Prepare
 	m := &pbJob.PreparePhase{
 		Participants: []*pbJob.PreparePhase_Participant{
 			&pbJob.PreparePhase_Participant{
@@ -38,9 +41,9 @@ func connect() {
 			},
 		},
 	}
-	r2, err := c.DoPrepare(context.Background(), m)
+	r, err = c.DoPrepare(context.Background(), m)
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}
-	log.Printf("DoPrepare: %s", r2)
+	log.Printf("DoPrepare: %s", r)
 }
