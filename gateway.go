@@ -9,6 +9,7 @@ import (
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
 	"github.com/grandcat/flexsmc/directory"
 	proto "github.com/grandcat/flexsmc/proto"
+	pbJob "github.com/grandcat/flexsmc/proto/job"
 	auth "github.com/grandcat/srpc/authentication"
 	"github.com/grandcat/srpc/pairing"
 	"github.com/grandcat/srpc/server"
@@ -46,14 +47,14 @@ func NewGateway(opts GWOptions) *Gateway {
 
 // RPC service
 
-func (n *Gateway) Ping(ctx context.Context, in *proto.SMCInfo) (*proto.CmdResult, error) {
+func (n *Gateway) Ping(ctx context.Context, in *proto.SMCInfo) (*pbJob.CmdResult, error) {
 	a, ok := auth.FromAuthContext(ctx)
 	if ok {
 		p := n.reg.GetOrCreate(a.ID)
 		log.Println("Last peer ", a.ID, "IP:", a.Addr, " activity:", p.LastActivity())
 		p.Touch(a.Addr)
 
-		return &proto.CmdResult{Status: proto.CmdResult_SUCCESS}, nil
+		return &pbJob.CmdResult{Status: pbJob.CmdResult_SUCCESS}, nil
 	}
 	return nil, ErrPermDenied
 }
@@ -134,7 +135,7 @@ func chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGat
 		resp, err := stream.Recv()
 		if err != nil {
 			// Inform GW about loss of connection
-			toGW <- &proto.CmdResult{Status: proto.CmdResult_STREAM_ERR}
+			toGW <- &pbJob.CmdResult{Status: pbJob.CmdResult_STREAM_ERR}
 			log.Printf("[%s] stream rcv aborted.", a.ID)
 			return false, err
 		}

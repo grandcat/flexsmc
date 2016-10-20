@@ -38,9 +38,9 @@ func connect() {
 			},
 		},
 	}
-	r, err = c.DoPrepare(context.Background(), m)
+	r2, err := c.DoPrepare(context.Background(), m)
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}
-	log.Printf("DoPrepare: %s", r.Message)
+	log.Printf("DoPrepare: %s", r2)
 }

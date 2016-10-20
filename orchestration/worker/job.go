@@ -8,6 +8,7 @@ import (
 
 	"github.com/grandcat/flexsmc/directory"
 	proto "github.com/grandcat/flexsmc/proto"
+	pbJob "github.com/grandcat/flexsmc/proto/job"
 	auth "github.com/grandcat/srpc/authentication"
 )
 
@@ -34,7 +35,7 @@ type TaskPhase int32 //< slightly coupled to proto.SMCCmd_Phase
 
 type PeerResult struct {
 	Progress TaskPhase
-	Response *proto.CmdResult
+	Response *pbJob.CmdResult
 }
 
 type job struct {
@@ -126,7 +127,7 @@ func (j *job) closeAllChats() {
 
 var errCtxOrStreamFailure = errors.New("ctx timeout or stream failure")
 
-func (j *job) queryTargetsSync(ctx context.Context, cmd *proto.SMCCmd) ([]*proto.CmdResult, *PeerError) {
+func (j *job) queryTargetsSync(ctx context.Context, cmd *proto.SMCCmd) ([]*pbJob.CmdResult, *PeerError) {
 	// First, disseminate the job to all peers.
 	// Then, collect all results, but expect the results to be there until timeout occurs.
 
@@ -138,13 +139,13 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *proto.SMCCmd) ([]*proto
 	// Each peer delivers its response independently from each other. If one peer blocks,
 	// there is still the result of all other peers after the timeout occurs.
 	var errPeers []*directory.PeerInfo
-	resps := make([]*proto.CmdResult, 0, len(j.chats))
+	resps := make([]*pbJob.CmdResult, 0, len(j.chats))
 	for _, pch := range j.chats {
 		resp, err := pullRespUntilDone(ctx, pch.GetFeedback())
 		switch {
 		case err != nil:
 			fallthrough
-		case resp.Status >= proto.CmdResult_STREAM_ERR:
+		case resp.Status >= pbJob.CmdResult_STREAM_ERR:
 			errPeers = append(errPeers, pch.Peer())
 			log.Printf("[%s] job communication failed: %v", pch.Peer().ID, err)
 			pch.Close()
@@ -165,7 +166,7 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *proto.SMCCmd) ([]*proto
 var ErrEmptyChannel = errors.New("input channel is empty")
 var ErrChanClosed = errors.New("peer chan closed")
 
-func pullRespUntilDone(ctx context.Context, in <-chan *proto.CmdResult) (*proto.CmdResult, error) {
+func pullRespUntilDone(ctx context.Context, in <-chan *pbJob.CmdResult) (*pbJob.CmdResult, error) {
 	// Context timeout or abort: only collect result if available immediately
 	if ctx.Err() != nil {
 		select {
@@ -201,7 +202,7 @@ func (j *job) incProgress() {
 
 // API facing job originator for interaction
 
-func (j *job) sendFeedback(resp *proto.CmdResult) {
+func (j *job) sendFeedback(resp *pbJob.CmdResult) {
 	j.feedback <- PeerResult{Progress: j.progress, Response: resp}
 }
 

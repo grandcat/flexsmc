@@ -57,3 +57,25 @@ message PreparePhase {
 message SessionPhase {
 
 }
+
+// Envelopes to send and receive jobs with some context.
+
+message CmdResult {
+    enum Status {
+        SUCCESS     = 0;
+        UNKNOWN_CMD = 1;
+        DENIED      = 2;
+        ABORTED     = 3;
+        // Communication related errors
+        STREAM_ERR  = 128;
+    }
+    Status status    = 1;
+    string msg       = 2;
+    SMCResult result = 3;
+    // Partly filled on receiver side (e.g. peer ID)
+    map<string, string> metadata = 7;
+}
+
+message SMCResult {
+    double res = 1;
+}

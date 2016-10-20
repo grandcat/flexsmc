@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/grandcat/flexsmc/orchestration/worker"
-	proto "github.com/grandcat/flexsmc/proto"
+	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"golang.org/x/net/context"
 )
 
@@ -15,9 +15,9 @@ var ErrInconsistentResult = errors.New("inconsistent peer results")
 type Aggregator struct {
 }
 
-func (a *Aggregator) Process(ctx context.Context, in worker.JobWatcher) (*proto.SMCResult, error) {
+func (a *Aggregator) Process(ctx context.Context, in worker.JobWatcher) (*pbJob.SMCResult, error) {
 	numParticipants := len(in.Job().Participants)
-	msgBuf := make([][]*proto.CmdResult, 2)
+	msgBuf := make([][]*pbJob.CmdResult, 2)
 
 	var lastProgress worker.TaskPhase = -1
 loop:
@@ -44,7 +44,7 @@ loop:
 					}
 				}
 				// Pre-allocate buffer for next phase
-				msgBuf[int(res.Progress)] = make([]*proto.CmdResult, 0, numParticipants)
+				msgBuf[int(res.Progress)] = make([]*pbJob.CmdResult, 0, numParticipants)
 				lastProgress = res.Progress
 			}
 
@@ -74,7 +74,7 @@ loop:
 // to participating peers.
 // XXX: very hacky function. The whole aggregator needs a more proper design to work for
 // more generic tasks.
-func analyzeResultConsistency(msgs []*proto.CmdResult) error {
+func analyzeResultConsistency(msgs []*pbJob.CmdResult) error {
 	if len(msgs) == 0 {
 		return nil
 	}

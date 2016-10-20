@@ -71,7 +71,7 @@ func (s *smcSessionMock) ID() uint64 {
 	return s.id
 }
 
-func (s *smcSessionMock) NextCmd(in *proto.SMCCmd) (out *proto.CmdResult, more bool) {
+func (s *smcSessionMock) NextCmd(in *proto.SMCCmd) (out *pbJob.CmdResult, more bool) {
 	defer s.condTearDown()
 	more = true
 
@@ -108,9 +108,9 @@ func (s *smcSessionMock) NextCmd(in *proto.SMCCmd) (out *proto.CmdResult, more b
 	return
 }
 
-func (s *smcSessionMock) doPrepare(info *pbJob.PreparePhase) *proto.CmdResult {
-	res := &proto.CmdResult{
-		Status: proto.CmdResult_SUCCESS,
+func (s *smcSessionMock) doPrepare(info *pbJob.PreparePhase) *pbJob.CmdResult {
+	res := &pbJob.CmdResult{
+		Status: pbJob.CmdResult_SUCCESS,
 		Msg:    "->proto.Prepare: nice, but I am stupid",
 	}
 	// We're doing hard work :)
@@ -119,11 +119,11 @@ func (s *smcSessionMock) doPrepare(info *pbJob.PreparePhase) *proto.CmdResult {
 	return res
 }
 
-func (s *smcSessionMock) doSession(info *pbJob.SessionPhase) *proto.CmdResult {
-	res := &proto.CmdResult{
-		Status: proto.CmdResult_SUCCESS,
+func (s *smcSessionMock) doSession(info *pbJob.SessionPhase) *pbJob.CmdResult {
+	res := &pbJob.CmdResult{
+		Status: pbJob.CmdResult_SUCCESS,
 		Msg:    "->proto.Session: nice, but I am stupid",
-		Result: &proto.SMCResult{Res: 1234},
+		Result: &pbJob.SMCResult{Res: 1234},
 	}
 	// We're doing hard work :)
 	time.Sleep(time.Second * 5)
@@ -137,7 +137,11 @@ func (s *smcSessionMock) doSession(info *pbJob.SessionPhase) *proto.CmdResult {
 }
 
 func (s *smcSessionMock) releaseResources() {
-	s.done <- struct{}{}
+	if s.tearedDown == false {
+		// Invalidate session and release worker resource.
+		s.tearedDown = true
+		s.done <- struct{}{}
+	}
 }
 
 func (s *smcSessionMock) TearDown() {
@@ -148,10 +152,7 @@ func (s *smcSessionMock) TearDown() {
 // condTearDown releases resources to the pool in case of reaching an invalid or final state.
 // No further commands expected.
 func (s *smcSessionMock) condTearDown() {
-	if s.phase >= proto.SMCCmd_FINISH && s.tearedDown == false {
-		// Invalidate session.
-		s.tearedDown = true
-		// Return resources for other session requestors.
+	if s.phase >= proto.SMCCmd_FINISH {
 		s.releaseResources()
 	}
 }
@@ -193,9 +194,9 @@ func (s *smcSessionMock) allowPhaseTransition(newPhase proto.SMCCmd_Phase) bool 
 	return allow
 }
 
-func sendError(err error) (out *proto.CmdResult, more bool) {
-	out = &proto.CmdResult{
-		Status: proto.CmdResult_DENIED,
+func sendError(err error) (out *pbJob.CmdResult, more bool) {
+	out = &pbJob.CmdResult{
+		Status: pbJob.CmdResult_DENIED,
 		Msg:    err.Error(),
 	}
 	more = false

@@ -2,21 +2,22 @@ package directory
 
 import (
 	proto "github.com/grandcat/flexsmc/proto"
+	pbJob "github.com/grandcat/flexsmc/proto/job"
 )
 
 type ChatWithPeer interface {
 	Peer() *PeerInfo
 	Instruct() chan<- *proto.SMCCmd
-	GetFeedback() <-chan *proto.CmdResult
+	GetFeedback() <-chan *pbJob.CmdResult
 	Close()
 }
 
 type ChatWithGateway interface {
 	GetInstructions() <-chan *proto.SMCCmd
-	Feedback() chan<- *proto.CmdResult
+	Feedback() chan<- *pbJob.CmdResult
 	// Metadata handling
-	SetPeerMetadata(r *proto.CmdResult)
-	SetMetadata(r *proto.CmdResult, key, value string)
+	SetPeerMetadata(r *pbJob.CmdResult)
+	SetMetadata(r *pbJob.CmdResult, key, value string)
 }
 
 // 0 = Blocking channel:
@@ -32,14 +33,14 @@ type smcChat struct {
 	// Channel to send some instructions to a certain peer
 	to chan *proto.SMCCmd
 	// Channel to listen for feedback from the same peer
-	from chan *proto.CmdResult
+	from chan *pbJob.CmdResult
 }
 
 func newTalker(p *PeerInfo) smcChat {
 	return smcChat{
 		peer: p,
 		to:   make(chan *proto.SMCCmd, chatBufLen),
-		from: make(chan *proto.CmdResult, chatBufLen),
+		from: make(chan *pbJob.CmdResult, chatBufLen),
 	}
 }
 
@@ -53,7 +54,7 @@ func (t smcChat) Instruct() chan<- *proto.SMCCmd {
 	return t.to
 }
 
-func (t smcChat) GetFeedback() <-chan *proto.CmdResult {
+func (t smcChat) GetFeedback() <-chan *pbJob.CmdResult {
 	return t.from
 }
 
@@ -67,18 +68,18 @@ func (t smcChat) GetInstructions() <-chan *proto.SMCCmd {
 	return t.to
 }
 
-func (t smcChat) Feedback() chan<- *proto.CmdResult {
+func (t smcChat) Feedback() chan<- *pbJob.CmdResult {
 	return t.from
 }
 
-func (t smcChat) SetPeerMetadata(r *proto.CmdResult) {
+func (t smcChat) SetPeerMetadata(r *pbJob.CmdResult) {
 	if r.Metadata == nil {
 		r.Metadata = make(map[string]string)
 	}
 	r.Metadata["peerID"] = string(t.peer.ID)
 }
 
-func (t smcChat) SetMetadata(r *proto.CmdResult, key, value string) {
+func (t smcChat) SetMetadata(r *pbJob.CmdResult, key, value string) {
 	if r.Metadata == nil {
 		r.Metadata = make(map[string]string)
 	}

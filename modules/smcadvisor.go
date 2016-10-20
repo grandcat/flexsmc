@@ -6,6 +6,7 @@ import (
 	"time"
 
 	proto "github.com/grandcat/flexsmc/proto"
+	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"github.com/grandcat/flexsmc/smc"
 )
 
@@ -84,7 +85,7 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 			smcSess.Init(stream.Context(), in.SessionID)
 		}
 		// Trigger state machine in SMC backend and send generated response.
-		var resp *proto.CmdResult
+		var resp *pbJob.CmdResult
 		resp, moreCmds = smcSess.NextCmd(in)
 		// Send back response
 		log.Printf(">>[%v] Reply to GW now", moreCmds)
