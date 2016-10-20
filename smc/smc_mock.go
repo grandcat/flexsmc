@@ -136,19 +136,23 @@ func (s *smcSessionMock) doSession(info *pbJob.SessionPhase) *proto.CmdResult {
 	return res
 }
 
+func (s *smcSessionMock) releaseResources() {
+	s.done <- struct{}{}
+}
+
 func (s *smcSessionMock) TearDown() {
 	s.phase = proto.SMCCmd_FINISH
 	s.condTearDown()
 }
 
-// condTearDown releases resources to the pool in case of reaching an invalid or final state
-// expecting no further commands.
+// condTearDown releases resources to the pool in case of reaching an invalid or final state.
+// No further commands expected.
 func (s *smcSessionMock) condTearDown() {
 	if s.phase >= proto.SMCCmd_FINISH && s.tearedDown == false {
 		// Invalidate session.
 		s.tearedDown = true
 		// Return resources for other session requestors.
-		s.done <- struct{}{}
+		s.releaseResources()
 	}
 }
 
