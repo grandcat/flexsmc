@@ -22,12 +22,13 @@ const (
 
 func connect() {
 	dialSocket := func(addr string, timeout time.Duration) (net.Conn, error) {
-		const netSep = "unix:"
-		isUnix := strings.HasPrefix(addr, netSep)
-		if !isUnix {
+		const netSep = "unix"
+		isUnixSock := strings.HasPrefix(addr, netSep)
+		s := strings.Index(addr, ":")
+		if !isUnixSock || s < 0 {
 			return nil, errors.New("unknown network type")
 		}
-		return net.DialTimeout(addr[:len(netSep)-1], addr[len(netSep):], timeout)
+		return net.DialTimeout(addr[:s], addr[s+1:], timeout)
 	}
 
 	conn, err := grpc.Dial(serverAddrSock, grpc.WithDialer(dialSocket), grpc.WithInsecure())
