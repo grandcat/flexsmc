@@ -32,19 +32,20 @@ syntax = "proto3";
 package smc;
 
 option java_multiple_files = true;
-option java_package = "dk.alexandra.fresco.demo";
-option java_outer_classname = "HelloWorldProto";
-option objc_class_prefix = "HLW";
+option java_package = "de.tum.flexsmc.smc.rpc";
+option java_outer_classname = "SMCConnector";
+option objc_class_prefix = "SMCC";
 
 import "github.com/grandcat/flexsmc/proto/job/job.proto";
 
 service SMC {
   rpc Init (SessionCtx) returns (job.CmdResult) {}
+  // The header must include the session ID for DoPrepare and DoSession to work.
   rpc DoPrepare (job.PreparePhase) returns (job.CmdResult) {}
   rpc DoSession (job.SessionPhase) returns (job.CmdResult) {}
   rpc TearDown (SessionCtx) returns (job.CmdResult) {}
 }
 
 message SessionCtx {
-  uint64 sessionID = 1;
+  string sessionID = 1;
 }
