@@ -39,23 +39,29 @@ func connect() {
 
 	c := proto.NewSMCClient(conn)
 
-	// Session metadata as header
-	md := metadata.Pairs("session-id", "123456789")
-	ctx := metadata.NewContext(context.Background(), md)
+	ctx := context.Background()
 	// 1. Init
-	r, err := c.Init(ctx, &proto.SessionCtx{SessionID: 12345})
+	r, err := c.Init(ctx, &proto.SessionCtx{SessionID: "123456789"})
 	if err != nil {
 		log.Fatalf("could not SMC Init: %v", err)
 	}
 	log.Printf("Init: %s", r)
 	// 2. Prepare
+	md := metadata.Pairs("session-id", "123456789")
+	ctx = metadata.NewContext(ctx, md)
 	m := &pbJob.PreparePhase{
 		Participants: []*pbJob.PreparePhase_Participant{
 			&pbJob.PreparePhase_Participant{
-				Addr: "addr1",
+				SmcPeerID: 1,
+				Endpoint:  "addr1:11111",
 			},
 			&pbJob.PreparePhase_Participant{
-				Addr: "addr2",
+				SmcPeerID: 2,
+				Endpoint:  "addr2:22222",
+			},
+			&pbJob.PreparePhase_Participant{
+				SmcPeerID: 3,
+				Endpoint:  "addr3:33333",
 			},
 		},
 	}

@@ -47,11 +47,16 @@ message SMCTask {
 
 message PreparePhase {
     message Participant {
-        string identity = 1;
-        string addr     = 2;
+        // Fixed authentication (certificate) based identity
+        string authID   = 1;
+        // Temporarily assigned peer identity for the current SMC task
+        int32 smcPeerID = 2;
+        // Address and port of the service (address:port)
+        string endpoint = 3;
     }
     repeated Participant participants = 1;
-    SMCTask smcTask                   = 2;
+    int32 smcPeerID                   = 2;
+    SMCTask smcTask                   = 3;
 }
 
 message SessionPhase {
