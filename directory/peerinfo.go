@@ -118,9 +118,8 @@ func (pi *PeerInfo) UnsubscribeCmdChan() {
 }
 
 // RequestChat: channel container to communicate with this peer
-func (pi *PeerInfo) RequestChat(ctx context.Context) (ChatWithPeer, error) {
-	// TODO: handle context
-	chat := newTalker(pi)
+func (pi *PeerInfo) RequestChat(ctx context.Context, cid ChannelID) (ChatWithPeer, error) {
+	chat := newTalker(pi, cid)
 	select {
 	case pi.requestedSessions <- chat:
 		return chat, nil
@@ -129,16 +128,3 @@ func (pi *PeerInfo) RequestChat(ctx context.Context) (ChatWithPeer, error) {
 		return nil, ctx.Err()
 	}
 }
-
-// func (pi *PeerInfo) SendMsg(m interface{}) error {
-// 	select {
-// 	case pi.tx <- m:
-// 		// No previous message in buffer. So we conclude that our previously queued message reached
-// 		// its destination peer.
-// 		return nil
-// 	default:
-// 		// Sender blocking (chan len = 1). A previously queued message is still waiting until
-// 		// a specified delivery deadline rejects this message.
-// 		return fmt.Errorf("delivery of last msg not succeeded yet (node temporarily offline?)")
-// 	}
-// }

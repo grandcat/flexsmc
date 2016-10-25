@@ -2,9 +2,14 @@ package directory
 
 import pbJob "github.com/grandcat/flexsmc/proto/job"
 
+// ChannelID is a local identifier incorporating a node's relative
+// position within a SMC network subset.
+type ChannelID int32
+
 type ChatWithPeer interface {
 	Peer() *PeerInfo
 	Instruct() chan<- *pbJob.SMCCmd
+	InstructSafe(cmd *pbJob.SMCCmd)
 	GetFeedback() <-chan *pbJob.CmdResult
 	Close()
 }
@@ -31,13 +36,17 @@ type smcChat struct {
 	to chan *pbJob.SMCCmd
 	// Channel to listen for feedback from the same peer
 	from chan *pbJob.CmdResult
+	// Metadata for the node to incorporate its relative position for
+	// coordination
+	chanID ChannelID
 }
 
-func newTalker(p *PeerInfo) smcChat {
+func newTalker(p *PeerInfo, cid ChannelID) smcChat {
 	return smcChat{
-		peer: p,
-		to:   make(chan *pbJob.SMCCmd, chatBufLen),
-		from: make(chan *pbJob.CmdResult, chatBufLen),
+		peer:   p,
+		chanID: cid,
+		to:     make(chan *pbJob.SMCCmd, chatBufLen),
+		from:   make(chan *pbJob.CmdResult, chatBufLen),
 	}
 }
 
@@ -49,6 +58,18 @@ func (t smcChat) Peer() *PeerInfo {
 
 func (t smcChat) Instruct() chan<- *pbJob.SMCCmd {
 	return t.to
+}
+
+func (t smcChat) InstructSafe(cmd *pbJob.SMCCmd) {
+	// TODO: add context to abort
+	newCmd := &pbJob.SMCCmd{}
+	// Copy top level only (NO deep copy! I want it like that ;)
+	*newCmd = *cmd
+	// Now we can tamper with ChannelID (top level) without causing a
+	// thread safety
+	newCmd.SmcPeerID = int32(t.chanID)
+
+	t.to <- newCmd
 }
 
 func (t smcChat) GetFeedback() <-chan *pbJob.CmdResult {

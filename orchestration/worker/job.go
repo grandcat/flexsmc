@@ -87,12 +87,13 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 		j.chats = make(map[auth.PeerID]directory.ChatWithPeer, len(j.instr.Participants))
 	}
 
-	for _, p := range j.instr.Participants {
+	for cid, p := range j.instr.Participants {
 		if _, exists := j.chats[p.ID]; exists {
 			continue
 		}
-
-		pch, err := p.RequestChat(ctx)
+		// XXX: (ab)use the iteration order for incorporating the parties in a local SMC structure
+		// TODO: allow cid to be altered by pipeline
+		pch, err := p.RequestChat(ctx, directory.ChannelID(cid+1))
 		if err != nil {
 			errPeers = append(errPeers, p)
 			log.Printf("[%s] Talk request not handled fast enough. Aborting.", p.ID)
@@ -130,9 +131,9 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 	// First, disseminate the job to all peers.
 	// Then, collect all results, but expect the results to be there until timeout occurs.
 
-	// Send
 	for _, pch := range j.chats {
-		pch.Instruct() <- cmd
+		pch.InstructSafe(cmd)
+		// pch.Instruct() <- cmd
 	}
 	// Receive
 	// Each peer delivers its response independently from each other. If one peer blocks,

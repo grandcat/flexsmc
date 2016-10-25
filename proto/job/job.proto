@@ -55,7 +55,6 @@ message PreparePhase {
         string endpoint = 3;
     }
     repeated Participant participants = 1;
-    int32 smcPeerID                   = 2;
     SMCTask smcTask                   = 3;
 }
 
