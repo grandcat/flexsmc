@@ -1,19 +1,16 @@
 package directory
 
-import (
-	proto "github.com/grandcat/flexsmc/proto"
-	pbJob "github.com/grandcat/flexsmc/proto/job"
-)
+import pbJob "github.com/grandcat/flexsmc/proto/job"
 
 type ChatWithPeer interface {
 	Peer() *PeerInfo
-	Instruct() chan<- *proto.SMCCmd
+	Instruct() chan<- *pbJob.SMCCmd
 	GetFeedback() <-chan *pbJob.CmdResult
 	Close()
 }
 
 type ChatWithGateway interface {
-	GetInstructions() <-chan *proto.SMCCmd
+	GetInstructions() <-chan *pbJob.SMCCmd
 	Feedback() chan<- *pbJob.CmdResult
 	// Metadata handling
 	SetPeerMetadata(r *pbJob.CmdResult)
@@ -31,7 +28,7 @@ const chatBufLen = 1
 type smcChat struct {
 	peer *PeerInfo
 	// Channel to send some instructions to a certain peer
-	to chan *proto.SMCCmd
+	to chan *pbJob.SMCCmd
 	// Channel to listen for feedback from the same peer
 	from chan *pbJob.CmdResult
 }
@@ -39,7 +36,7 @@ type smcChat struct {
 func newTalker(p *PeerInfo) smcChat {
 	return smcChat{
 		peer: p,
-		to:   make(chan *proto.SMCCmd, chatBufLen),
+		to:   make(chan *pbJob.SMCCmd, chatBufLen),
 		from: make(chan *pbJob.CmdResult, chatBufLen),
 	}
 }
@@ -50,7 +47,7 @@ func (t smcChat) Peer() *PeerInfo {
 	return t.peer
 }
 
-func (t smcChat) Instruct() chan<- *proto.SMCCmd {
+func (t smcChat) Instruct() chan<- *pbJob.SMCCmd {
 	return t.to
 }
 
@@ -64,7 +61,7 @@ func (t smcChat) Close() {
 
 // For a Peer interacting with a gateway
 
-func (t smcChat) GetInstructions() <-chan *proto.SMCCmd {
+func (t smcChat) GetInstructions() <-chan *pbJob.SMCCmd {
 	return t.to
 }
 

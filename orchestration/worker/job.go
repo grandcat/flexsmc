@@ -7,13 +7,12 @@ import (
 	"sync"
 
 	"github.com/grandcat/flexsmc/directory"
-	proto "github.com/grandcat/flexsmc/proto"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	auth "github.com/grandcat/srpc/authentication"
 )
 
 type JobInstruction struct {
-	Tasks        []*proto.SMCCmd
+	Tasks        []*pbJob.SMCCmd
 	Participants []*directory.PeerInfo
 }
 
@@ -31,7 +30,7 @@ type JobWatcher interface {
 	Err() *PeerError
 }
 
-type TaskPhase int32 //< slightly coupled to proto.SMCCmd_Phase
+type TaskPhase int32 //< slightly coupled to pbJob.SMCCmd_Phase
 
 type PeerResult struct {
 	Progress TaskPhase
@@ -127,7 +126,7 @@ func (j *job) closeAllChats() {
 
 var errCtxOrStreamFailure = errors.New("ctx timeout or stream failure")
 
-func (j *job) queryTargetsSync(ctx context.Context, cmd *proto.SMCCmd) ([]*pbJob.CmdResult, *PeerError) {
+func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob.CmdResult, *PeerError) {
 	// First, disseminate the job to all peers.
 	// Then, collect all results, but expect the results to be there until timeout occurs.
 
@@ -189,9 +188,9 @@ func pullRespUntilDone(ctx context.Context, in <-chan *pbJob.CmdResult) (*pbJob.
 	}
 }
 
-func (j *job) remainingTasks() []*proto.SMCCmd {
+func (j *job) remainingTasks() []*pbJob.SMCCmd {
 	if int(j.progress) >= len(j.instr.Tasks) {
-		return []*proto.SMCCmd{}
+		return []*pbJob.SMCCmd{}
 	}
 	return j.instr.Tasks[j.progress:]
 }

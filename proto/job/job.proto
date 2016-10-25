@@ -65,6 +65,28 @@ message SessionPhase {
 
 // Envelopes to send and receive jobs with some context.
 
+message SMCCmd {
+    uint64 sessionID        = 1;
+    int32 smcPeerID         = 5;
+    enum Phase {
+        PREPARE  = 0;
+        SESSION  = 1;
+        // ...
+        FINISH   = 126;
+        ABORT    = 127;
+    }
+    Phase state              = 2;
+    // Payload packet
+    oneof payload {
+        PreparePhase prepare = 3;
+        SessionPhase session = 4;
+    }
+}
+
+enum MetadataKey {
+    PEERID = 0;
+}
+
 message CmdResult {
     enum Status {
         SUCCESS     = 0;

@@ -12,31 +12,10 @@ import "github.com/grandcat/flexsmc/proto/job/job.proto";
 service Gateway {
     rpc Ping(SMCInfo) returns (job.CmdResult) {}
     // A peer can open multiple streams if it has enough capacities.
-    rpc AwaitSMCRound(stream job.CmdResult) returns (stream SMCCmd) {}
+    rpc AwaitSMCRound(stream job.CmdResult) returns (stream job.SMCCmd) {}
 }
 
 message SMCInfo {
     // tcpport
     uint32 tcpport = 1;
-}
-
-message SMCCmd {
-    uint64 sessionID    = 1;
-    enum Phase {
-        PREPARE  = 0;
-        SESSION  = 1;
-        // ...
-        FINISH   = 126;
-        ABORT    = 127;
-    }
-    Phase state         = 2;
-    // Payload packet
-    oneof payload {
-        job.PreparePhase prepare = 3;
-        job.SessionPhase session = 4;
-    }
-}
-
-enum MetadataKey {
-    PEERID = 0;
 }

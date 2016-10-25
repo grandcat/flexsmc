@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/grandcat/flexsmc/orchestration/worker"
-	proto "github.com/grandcat/flexsmc/proto"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 )
 
@@ -26,9 +25,9 @@ func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 		})
 	}
 
-	p1 := &proto.SMCCmd{
-		State: proto.SMCCmd_PREPARE,
-		Payload: &proto.SMCCmd_Prepare{Prepare: &pbJob.PreparePhase{
+	p1 := &pbJob.SMCCmd{
+		State: pbJob.SMCCmd_PREPARE,
+		Payload: &pbJob.SMCCmd_Prepare{Prepare: &pbJob.PreparePhase{
 			SmcTask:      task,
 			Participants: participants,
 			// SmcPeerID is filled by job worker
@@ -36,9 +35,9 @@ func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 	}
 
 	// Session phase
-	p2 := &proto.SMCCmd{
-		State:   proto.SMCCmd_SESSION,
-		Payload: &proto.SMCCmd_Session{Session: &pbJob.SessionPhase{}},
+	p2 := &pbJob.SMCCmd{
+		State:   pbJob.SMCCmd_SESSION,
+		Payload: &pbJob.SMCCmd_Session{Session: &pbJob.SessionPhase{}},
 	}
 
 	inOut.Tasks = append(inOut.Tasks, p1, p2)

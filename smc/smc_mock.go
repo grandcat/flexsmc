@@ -5,7 +5,6 @@ import (
 	"log"
 	"time"
 
-	proto "github.com/grandcat/flexsmc/proto"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"golang.org/x/net/context"
 )
@@ -55,7 +54,7 @@ type smcSessionMock struct {
 	done chan<- struct{}
 
 	// XXX: protect phase with mutex? doPrepare and doSession run async.
-	phase      proto.SMCCmd_Phase
+	phase      pbJob.SMCCmd_Phase
 	tearedDown bool
 }
 
@@ -71,27 +70,27 @@ func (s *smcSessionMock) ID() uint64 {
 	return s.id
 }
 
-func (s *smcSessionMock) NextCmd(in *proto.SMCCmd) (out *pbJob.CmdResult, more bool) {
+func (s *smcSessionMock) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more bool) {
 	defer s.condTearDown()
 	more = true
 
 	if err := s.validateSession(in); err != nil {
 		out, more = sendError(ErrSessionID)
 		// SMCCmd_ABORT is irreversible. Consequently, the session is teared down.
-		s.phase = proto.SMCCmd_ABORT
+		s.phase = pbJob.SMCCmd_ABORT
 		return
 	}
 
 	switch cmd := in.Payload.(type) {
-	case *proto.SMCCmd_Prepare:
-		if s.allowPhaseTransition(proto.SMCCmd_PREPARE) {
+	case *pbJob.SMCCmd_Prepare:
+		if s.allowPhaseTransition(pbJob.SMCCmd_PREPARE) {
 			log.Println(">> Participants:", cmd.Prepare.Participants)
 			out = s.doPrepare(cmd.Prepare)
 			more = true
 		}
 
-	case *proto.SMCCmd_Session:
-		if s.allowPhaseTransition(proto.SMCCmd_SESSION) {
+	case *pbJob.SMCCmd_Session:
+		if s.allowPhaseTransition(pbJob.SMCCmd_SESSION) {
 			log.Println(">> Session phase:", cmd.Session)
 			out = s.doSession(cmd.Session)
 			more = false
@@ -99,10 +98,10 @@ func (s *smcSessionMock) NextCmd(in *proto.SMCCmd) (out *pbJob.CmdResult, more b
 
 	default:
 		out, more = sendError(ErrInvTransition)
-		s.phase = proto.SMCCmd_ABORT
+		s.phase = pbJob.SMCCmd_ABORT
 	}
 	// Abort on previously noticed invalid phase transition
-	if s.phase == proto.SMCCmd_ABORT || out == nil {
+	if s.phase == pbJob.SMCCmd_ABORT || out == nil {
 		out, more = sendError(ErrInvTransition)
 	}
 	return
@@ -145,39 +144,39 @@ func (s *smcSessionMock) releaseResources() {
 }
 
 func (s *smcSessionMock) TearDown() {
-	s.phase = proto.SMCCmd_FINISH
+	s.phase = pbJob.SMCCmd_FINISH
 	s.condTearDown()
 }
 
 // condTearDown releases resources to the pool in case of reaching an invalid or final state.
 // No further commands expected.
 func (s *smcSessionMock) condTearDown() {
-	if s.phase >= proto.SMCCmd_FINISH {
+	if s.phase >= pbJob.SMCCmd_FINISH {
 		s.releaseResources()
 	}
 }
 
-func (s *smcSessionMock) validateSession(in *proto.SMCCmd) error {
+func (s *smcSessionMock) validateSession(in *pbJob.SMCCmd) error {
 	if s.id != in.SessionID {
 		return ErrSessionID
 	}
 	return nil
 }
 
-func (s *smcSessionMock) allowPhaseTransition(newPhase proto.SMCCmd_Phase) bool {
+func (s *smcSessionMock) allowPhaseTransition(newPhase pbJob.SMCCmd_Phase) bool {
 	allow := false
 	// Verify A -> B transition by checking the reverse direction: means, from B.
 	// which were valid states A to have reached this goal.
 	switch newPhase {
-	case proto.SMCCmd_PREPARE:
+	case pbJob.SMCCmd_PREPARE:
 		switch s.phase {
-		case initPhase, proto.SMCCmd_SESSION:
+		case initPhase, pbJob.SMCCmd_SESSION:
 			allow = true
 		}
 
-	case proto.SMCCmd_SESSION:
+	case pbJob.SMCCmd_SESSION:
 		switch s.phase {
-		case proto.SMCCmd_PREPARE:
+		case pbJob.SMCCmd_PREPARE:
 			allow = true
 		}
 
@@ -188,7 +187,7 @@ func (s *smcSessionMock) allowPhaseTransition(newPhase proto.SMCCmd_Phase) bool 
 	if allow {
 		s.phase = newPhase
 	} else {
-		s.phase = proto.SMCCmd_ABORT
+		s.phase = pbJob.SMCCmd_ABORT
 	}
 
 	return allow

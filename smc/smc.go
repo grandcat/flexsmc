@@ -3,7 +3,6 @@ package smc
 import (
 	"errors"
 
-	proto "github.com/grandcat/flexsmc/proto"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"golang.org/x/net/context"
 )
@@ -26,7 +25,7 @@ type Session interface {
 	// NextCmd evaluates the input command, forwards it to the SMC backend and sends back
 	// the result of the command evaluation.
 	// It blocks until the request is processed or the context is done.
-	NextCmd(in *proto.SMCCmd) (out *pbJob.CmdResult, more bool)
+	NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more bool)
 	// TearDown finishes a session and frees occupied resources. This should be called
 	// if the originator is not interested anymore to keep the SMC reservation alive.
 	TearDown()
