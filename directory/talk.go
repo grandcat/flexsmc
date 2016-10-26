@@ -65,8 +65,8 @@ func (t smcChat) InstructSafe(cmd *pbJob.SMCCmd) {
 	newCmd := &pbJob.SMCCmd{}
 	// Copy top level only (NO deep copy! I want it like that ;)
 	*newCmd = *cmd
-	// Now we can tamper with ChannelID (top level) without causing a
-	// thread safety
+	// Now we can tamper with ChannelID (top level in struct) without causing
+	// a race condition (-> thread safety)
 	newCmd.SmcPeerID = int32(t.chanID)
 
 	t.to <- newCmd
