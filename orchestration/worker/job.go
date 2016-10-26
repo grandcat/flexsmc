@@ -13,7 +13,7 @@ import (
 
 type JobInstruction struct {
 	Tasks        []*pbJob.SMCCmd
-	Participants []*directory.PeerInfo
+	Participants map[directory.ChannelID]*directory.PeerInfo
 }
 
 type JobWatcher interface {
@@ -91,9 +91,7 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 		if _, exists := j.chats[p.ID]; exists {
 			continue
 		}
-		// XXX: (ab)use the iteration order for incorporating the parties in a local SMC structure
-		// TODO: allow cid to be altered by pipeline
-		pch, err := p.RequestChat(ctx, directory.ChannelID(cid+1))
+		pch, err := p.RequestChat(ctx, cid)
 		if err != nil {
 			errPeers = append(errPeers, p)
 			log.Printf("[%s] Talk request not handled fast enough. Aborting.", p.ID)

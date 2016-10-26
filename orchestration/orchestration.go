@@ -27,8 +27,9 @@ func NewFIFOOrchestration(reg *directory.Registry) Orchestration {
 	// Init preprocessing pipeline
 	pipe0 := &pipeline.GroupMap{Reg: reg}
 	pipe1 := &pipeline.OnlineFilter{Reg: reg}
-	pipe2 := &pipeline.PhaseBuilder{}
-	processInput := pipeline.NewPipeline(pipe0, pipe1, pipe2)
+	pipe2 := &pipeline.ContinousChanID{}
+	pipe3 := &pipeline.PhaseBuilder{}
+	processInput := pipeline.NewPipeline(pipe0, pipe1, pipe2, pipe3)
 
 	return &FifoOrchestration{
 		reg:      reg,

@@ -14,6 +14,12 @@ type GroupMap struct {
 }
 
 func (g *GroupMap) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction) error {
-	inOut.Participants = g.Reg.GetAll()
+	parties := g.Reg.GetAll()
+	inOut.Participants = make(map[directory.ChannelID]*directory.PeerInfo, len(parties))
+	for idx, p := range parties {
+		// The channelID is not important yet. Will be changed during a later pipe.
+		inOut.Participants[directory.ChannelID(idx+1)] = p
+	}
+
 	return nil
 }

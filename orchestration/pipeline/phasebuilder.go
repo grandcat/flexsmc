@@ -17,10 +17,10 @@ func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 
 	// Prepare phase
 	var participants []*pbJob.PreparePhase_Participant
-	for i, p := range inOut.Participants {
+	for cid, p := range inOut.Participants {
 		participants = append(participants, &pbJob.PreparePhase_Participant{
 			AuthID:    string(p.ID),
-			SmcPeerID: int32(i + 1),
+			SmcPeerID: int32(cid),
 			Endpoint:  p.Addr.String(),
 		})
 	}
