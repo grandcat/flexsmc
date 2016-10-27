@@ -19,7 +19,7 @@ type Connector interface {
 }
 
 type Session interface {
-	Init(ctx context.Context, id uint64)
+	Init(ctx context.Context, id uint64) error
 	// ID of the current session.
 	ID() uint64
 	// NextCmd evaluates the input command, forwards it to the SMC backend and sends back

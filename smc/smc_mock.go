@@ -60,10 +60,12 @@ type smcSessionMock struct {
 
 const initPhase = -1
 
-func (s *smcSessionMock) Init(ctx context.Context, id uint64) {
+func (s *smcSessionMock) Init(ctx context.Context, id uint64) error {
 	s.ctx = ctx
 	s.id = id
 	s.phase = initPhase
+
+	return nil
 }
 
 func (s *smcSessionMock) ID() uint64 {
@@ -191,15 +193,6 @@ func (s *smcSessionMock) allowPhaseTransition(newPhase pbJob.SMCCmd_Phase) bool 
 	}
 
 	return allow
-}
-
-func sendError(err error) (out *pbJob.CmdResult, more bool) {
-	out = &pbJob.CmdResult{
-		Status: pbJob.CmdResult_DENIED,
-		Msg:    err.Error(),
-	}
-	more = false
-	return
 }
 
 func (m *smcSessionMock) Err() error {

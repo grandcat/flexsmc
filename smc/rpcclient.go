@@ -20,7 +20,7 @@ const (
 	defaultName    = "world"
 )
 
-func connect() {
+func connect(socket string, id int32) {
 	dialSocket := func(addr string, timeout time.Duration) (net.Conn, error) {
 		const netSep = "unix"
 		isUnixSock := strings.HasPrefix(addr, netSep)
@@ -31,9 +31,14 @@ func connect() {
 		return net.DialTimeout(addr[:s], addr[s+1:], timeout)
 	}
 
-	conn, err := grpc.Dial(serverAddrSock, grpc.WithDialer(dialSocket), grpc.WithInsecure())
+	if socket == "" {
+		socket = serverAddrSock
+	}
+
+	conn, err := grpc.Dial(socket, grpc.WithDialer(dialSocket), grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Printf("did not connect: %v", err)
+		return
 	}
 	defer conn.Close()
 
@@ -43,31 +48,61 @@ func connect() {
 	// 1. Init
 	r, err := c.Init(ctx, &proto.SessionCtx{SessionID: "123456789"})
 	if err != nil {
-		log.Fatalf("could not SMC Init: %v", err)
+		log.Printf("could not SMC Init: %v", err)
+		return
 	}
 	log.Printf("Init: %s", r)
-	// 2. Prepare
+	// 2. Prepare (and second prepare with one missing participant)
 	md := metadata.Pairs("session-id", "123456789")
 	ctx = metadata.NewContext(ctx, md)
-	m := &pbJob.PreparePhase{
-		Participants: []*pbJob.PreparePhase_Participant{
-			&pbJob.PreparePhase_Participant{
-				SmcPeerID: 1,
-				Endpoint:  "addr1:11111",
-			},
-			&pbJob.PreparePhase_Participant{
-				SmcPeerID: 2,
-				Endpoint:  "addr2:22222",
-			},
-			&pbJob.PreparePhase_Participant{
-				SmcPeerID: 3,
-				Endpoint:  "addr3:33333",
-			},
-		},
+
+	for i := 0; i < 2; i++ {
+		m := &pbJob.SMCCmd{
+			SmcPeerID: id,
+			Payload: &pbJob.SMCCmd_Prepare{Prepare: &pbJob.PreparePhase{
+				Participants: []*pbJob.PreparePhase_Participant{
+					&pbJob.PreparePhase_Participant{
+						SmcPeerID: 1,
+						Endpoint:  "[::1]:10001",
+					},
+					&pbJob.PreparePhase_Participant{
+						SmcPeerID: 2,
+						Endpoint:  "[::1]:10002",
+					},
+					&pbJob.PreparePhase_Participant{
+						SmcPeerID: 3,
+						Endpoint:  "[::1]:10003",
+					},
+					&pbJob.PreparePhase_Participant{
+						SmcPeerID: 4,
+						Endpoint:  "[::1]:10004",
+					},
+				},
+			}},
+		}
+		// Simulate a situation removing one node previously available
+		if i == 1 {
+			pl := m.Payload.(*pbJob.SMCCmd_Prepare).Prepare.Participants
+			pl = pl[:len(pl)-1]
+			m.Payload.(*pbJob.SMCCmd_Prepare).Prepare.Participants = pl
+		}
+
+		r, err = c.NextCmd(ctx, m)
+		if err != nil {
+			log.Fatalf("cmd for next phase failed: %v", err)
+		}
+		log.Printf("NextCmd: %s", r)
 	}
-	r, err = c.DoPrepare(ctx, m)
+
+	// 3. Start session
+	m := &pbJob.SMCCmd{
+		SmcPeerID: id,
+		Payload:   &pbJob.SMCCmd_Session{Session: &pbJob.SessionPhase{}},
+	}
+	r, err = c.NextCmd(ctx, m)
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		log.Fatalf("cmd for next phase failed: %v", err)
 	}
-	log.Printf("DoPrepare: %s", r)
+	log.Printf("NextCmd Session: %s", r)
+
 }
