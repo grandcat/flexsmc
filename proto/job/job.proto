@@ -88,10 +88,11 @@ enum MetadataKey {
 
 message CmdResult {
     enum Status {
-        SUCCESS     = 0;
-        UNKNOWN_CMD = 1;
-        DENIED      = 2;
-        ABORTED     = 3;
+        SUCCESS      = 0;
+        SUCCESS_DONE = 1;
+        UNKNOWN_CMD  = 8;
+        DENIED       = 9;
+        ABORTED      = 10;
         // Communication related errors
         STREAM_ERR  = 128;
     }

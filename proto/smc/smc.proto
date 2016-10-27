@@ -41,6 +41,7 @@ import "github.com/grandcat/flexsmc/proto/job/job.proto";
 service SMC {
   rpc Init (SessionCtx) returns (job.CmdResult) {}
   // The header must include the session ID for DoPrepare and DoSession to work.
+  rpc NextCmd (job.SMCCmd) returns (job.CmdResult) {}
   rpc DoPrepare (job.PreparePhase) returns (job.CmdResult) {}
   rpc DoSession (job.SessionPhase) returns (job.CmdResult) {}
   rpc TearDown (SessionCtx) returns (job.CmdResult) {}
