@@ -15,6 +15,9 @@ func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 		return errors.New("expect no SMC phases before running PhaseBuilder")
 	}
 
+	// TODO: generate unique session ID
+	sessID := "f13x0123456789"
+
 	// Prepare phase
 	var participants []*pbJob.PreparePhase_Participant
 	for cid, p := range inOut.Participants {
@@ -26,7 +29,8 @@ func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 	}
 
 	p1 := &pbJob.SMCCmd{
-		State: pbJob.SMCCmd_PREPARE,
+		SessionID: sessID,
+		State:     pbJob.SMCCmd_PREPARE,
 		Payload: &pbJob.SMCCmd_Prepare{Prepare: &pbJob.PreparePhase{
 			SmcTask:      task,
 			Participants: participants,
@@ -36,8 +40,9 @@ func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 
 	// Session phase
 	p2 := &pbJob.SMCCmd{
-		State:   pbJob.SMCCmd_SESSION,
-		Payload: &pbJob.SMCCmd_Session{Session: &pbJob.SessionPhase{}},
+		SessionID: sessID,
+		State:     pbJob.SMCCmd_SESSION,
+		Payload:   &pbJob.SMCCmd_Session{Session: &pbJob.SessionPhase{}},
 	}
 
 	inOut.Tasks = append(inOut.Tasks, p1, p2)
