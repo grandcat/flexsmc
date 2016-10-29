@@ -24,9 +24,10 @@ func runGateway() {
 
 	opts := GWOptions{
 		Options: Options{
-			CertFile: *certFile,
-			KeyFile:  *keyFile,
-			NodeInfo: *peerInfo,
+			CertFile:   *certFile,
+			KeyFile:    *keyFile,
+			NodeInfo:   *peerInfo,
+			UsePairing: *enPairing,
 		},
 		Registry: registry,
 	}
@@ -60,7 +61,7 @@ func runPeer() {
 			CertFile:   *certFile,
 			KeyFile:    *keyFile,
 			NodeInfo:   *peerInfo,
-			UsePairing: false,
+			UsePairing: *enPairing,
 		},
 	}
 	peer := NewPeer(opts)

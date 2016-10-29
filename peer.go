@@ -91,8 +91,8 @@ func (p *Peer) Operate() {
 
 func (p *Peer) discover() (next RunState) {
 	// If not known, initiate pairing
-	// knownGW := p.srpc.GetPeerCerts().ActivePeerCertificates(peerID)
-	knownGW := 1
+	// knownGW := p.srpc.GetPeerCerts().ActivePeerCertificates("gw4242.flexsmc.local")
+	knownGW := 0
 	if knownGW == 0 {
 		next = Pairing
 
@@ -106,9 +106,8 @@ func (p *Peer) startPairing() (next RunState) {
 	const peerID = "gw4242.flexsmc.local"
 	// 2. Initiate pairing if it is an unknown identity (if desired)
 	// knownGW := p.srpc.GetPeerCerts().ActivePeerCertificates(peerID)
-	knownGW := 0
 	log.Println("Pairing active?", p.opts.UsePairing)
-	if p.opts.UsePairing && knownGW == 0 {
+	if p.opts.UsePairing {
 		log.Println("Start pairing...")
 		// XXX: assume we want to pair with this gateway (e.g. matching properties, instructed by admin, ...)
 		ccp, err := p.srpc.DialUnsecure(peerID)
@@ -179,7 +178,10 @@ func (p *Peer) startService() (next RunState) {
 			next = Connecting
 
 		case RetryConnection <= p.connRetry:
+			// Cleanup for new try
 			p.connRetry = 0
+			p.srpc.TearDown()
+
 			next = Discovery
 		}
 		return
