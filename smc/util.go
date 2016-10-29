@@ -2,7 +2,7 @@ package smc
 
 import pbJob "github.com/grandcat/flexsmc/proto/job"
 
-func sendError(err error) (out *pbJob.CmdResult, more bool) {
+func reportError(err error) (out *pbJob.CmdResult, more bool) {
 	out = &pbJob.CmdResult{
 		Status: pbJob.CmdResult_DENIED,
 		Msg:    err.Error(),

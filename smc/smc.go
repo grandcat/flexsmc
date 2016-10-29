@@ -19,9 +19,9 @@ type Connector interface {
 }
 
 type Session interface {
-	Init(ctx context.Context, id uint64) error
+	Init(ctx context.Context, id string) error
 	// ID of the current session.
-	ID() uint64
+	ID() string
 	// NextCmd evaluates the input command, forwards it to the SMC backend and sends back
 	// the result of the command evaluation.
 	// It blocks until the request is processed or the context is done.

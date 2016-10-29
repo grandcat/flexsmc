@@ -15,9 +15,7 @@ import (
 )
 
 const (
-	serverAddr     = "localhost:50052"
-	serverAddrSock = "unix:/tmp/grpc.sock"
-	defaultName    = "world"
+	defServerSocket = "unix:/tmp/grpc.sock"
 )
 
 func connect(socket string, id int32) {
@@ -32,7 +30,7 @@ func connect(socket string, id int32) {
 	}
 
 	if socket == "" {
-		socket = serverAddrSock
+		socket = defServerSocket
 	}
 
 	conn, err := grpc.Dial(socket, grpc.WithDialer(dialSocket), grpc.WithInsecure())
@@ -44,7 +42,7 @@ func connect(socket string, id int32) {
 
 	c := proto.NewSMCClient(conn)
 
-	ctx := context.Background()
+	ctx, _ := context.WithTimeout(context.Background(), time.Millisecond*500)
 	// 1. Init
 	r, err := c.Init(ctx, &proto.SessionCtx{SessionID: "123456789"})
 	if err != nil {
@@ -104,5 +102,29 @@ func connect(socket string, id int32) {
 		log.Fatalf("cmd for next phase failed: %v", err)
 	}
 	log.Printf("NextCmd Session: %s", r)
+}
 
+func DialSMCClient(socket string) (proto.SMCClient, error) {
+	if socket == "" {
+		socket = defServerSocket
+	}
+
+	conn, err := grpc.Dial(socket, grpc.WithDialer(socketDialer), grpc.WithInsecure())
+	if err != nil {
+		log.Printf("could not connect to socket: %v", err)
+		return nil, err
+	}
+
+	cl := proto.NewSMCClient(conn)
+	return cl, nil
+}
+
+func socketDialer(addr string, timeout time.Duration) (net.Conn, error) {
+	const netSep = "unix"
+	isUnixSock := strings.HasPrefix(addr, netSep)
+	s := strings.Index(addr, ":")
+	if !isUnixSock || s < 0 {
+		return nil, errors.New("unknown network type")
+	}
+	return net.DialTimeout(addr[:s], addr[s+1:], timeout)
 }

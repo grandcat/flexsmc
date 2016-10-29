@@ -65,7 +65,7 @@ message SessionPhase {
 // Envelopes to send and receive jobs with some context.
 
 message SMCCmd {
-    uint64 sessionID        = 1;
+    string sessionID        = 1;
     int32 smcPeerID         = 5;
     enum Phase {
         PREPARE  = 0;
@@ -88,12 +88,14 @@ enum MetadataKey {
 
 message CmdResult {
     enum Status {
+        // Class: status and recoverable errors
         SUCCESS      = 0;
         SUCCESS_DONE = 1;
         UNKNOWN_CMD  = 8;
         DENIED       = 9;
-        ABORTED      = 10;
-        // Communication related errors
+        // Class: irreversible errors
+        ABORTED      = 16;
+        // Class: communication errors
         STREAM_ERR  = 128;
     }
     Status status    = 1;

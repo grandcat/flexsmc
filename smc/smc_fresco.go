@@ -3,14 +3,19 @@ package smc
 import (
 	"errors"
 
+	"google.golang.org/grpc/metadata"
+
+	"fmt"
+
 	pbJob "github.com/grandcat/flexsmc/proto/job"
+	proto "github.com/grandcat/flexsmc/proto/smc"
 	"golang.org/x/net/context"
 )
 
 const parallelSessions int = 2
 
 var (
-	errInvTransition = errors.New("invalid transition")
+	errInvalidCmd = errors.New("invalid command")
 )
 
 type FrescoConnect struct {
@@ -30,11 +35,18 @@ func newFrescoConnector() Connector {
 }
 
 func (con *FrescoConnect) RequestSession(ctx context.Context) (Session, error) {
+	// Connect to local Fresco instance to see if it is present at all
+	client, err := DialSMCClient("")
+	if err != nil {
+		return nil, err
+	}
+
 	select {
 	case <-con.readyWorkers:
 		// We have some capacities to serve a new SMC session.
 		return &frescoSession{
-			done: con.readyWorkers,
+			client: client,
+			done:   con.readyWorkers,
 		}, nil
 
 	case <-ctx.Done():
@@ -44,70 +56,88 @@ func (con *FrescoConnect) RequestSession(ctx context.Context) (Session, error) {
 }
 
 type frescoSession struct {
-	ctx context.Context
-	id  uint64
+	ctx    context.Context
+	client proto.SMCClient
+	id     string
+	// Resource management
+	state chatState
 	// For returning our resources, send struct{}{}.
-	done       chan<- struct{}
-	tearedDown bool
-
-	phase pbJob.SMCCmd_Phase
+	done chan<- struct{}
 }
 
-const startPhase = -1
+type chatState int8
 
-func (s *frescoSession) Init(ctx context.Context, id uint64) error {
+const (
+	running chatState = iota
+	requestTearDown
+	stopped
+)
+
+func (s *frescoSession) Init(ctx context.Context, id string) error {
+	resp, err := s.client.Init(ctx, &proto.SessionCtx{SessionID: id})
+	if err != nil {
+		s.TearDown()
+		return err
+	}
+	if resp.Status != pbJob.CmdResult_SUCCESS {
+		s.TearDown()
+		return fmt.Errorf("could not init session: %s", resp.Msg)
+	}
+	// Associate session id with context for whole session
+	md := metadata.Pairs("session-id", id)
+	ctx = metadata.NewContext(ctx, md)
+
 	s.ctx = ctx
 	s.id = id
-	s.phase = startPhase
+	s.state = running
 
 	return nil
 }
 
-func (s *frescoSession) ID() uint64 {
+func (s *frescoSession) ID() string {
 	return s.id
 }
 
 func (s *frescoSession) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more bool) {
-	defer s.condTearDown()
-	more = true
+	defer s.condFreeResources()
+	more = false
 
 	if err := s.validateSession(in); err != nil {
-		out, more = sendError(ErrSessionID)
-		// SMCCmd_ABORT is irreversible. Consequently, the session is teared down.
-		s.phase = pbJob.SMCCmd_ABORT
+		out, more = reportError(ErrSessionID)
+		s.state = requestTearDown
 		return
-
 	}
 
-	// Validate transition to new or repeated phase and forward to FRESCO
-	if s.allowPhaseTransition(typeToPhase(in)) {
-		// TODO: forward message to FRESCO
+	// Forward command to Fresco and evaluate result to manage active chat.
+	out, err := s.client.NextCmd(s.ctx, in)
+	if err != nil {
+		out, more = reportError(err)
+		s.state = requestTearDown
+		return
 	}
 
-	// Abort on previously noticed invalid phase transition
-	if s.phase == pbJob.SMCCmd_ABORT || out == nil {
-		out, more = sendError(errInvTransition)
+	switch {
+	case pbJob.CmdResult_SUCCESS == out.Status:
+	case pbJob.CmdResult_ABORTED > out.Status:
+		more = true
+
+	default:
+		// We're done with that session or a irreversible error occurred
+		more = false
+		s.state = requestTearDown
 	}
 	return
 }
 
 func (s *frescoSession) TearDown() {
-	s.phase = pbJob.SMCCmd_FINISH
-	s.condTearDown()
+	s.state = requestTearDown
+	s.condFreeResources()
 }
 
-// condTearDown releases resources to the pool in case of reaching an invalid or final state.
-// No further commands expected.
-func (s *frescoSession) condTearDown() {
-	if s.phase >= pbJob.SMCCmd_FINISH {
-		s.releaseResources()
-	}
-}
-
-func (s *frescoSession) releaseResources() {
-	if s.tearedDown == false {
+func (s *frescoSession) condFreeResources() {
+	if s.state == requestTearDown {
 		// Invalidate session and release worker resource.
-		s.tearedDown = true
+		s.state = stopped
 		s.done <- struct{}{}
 	}
 }
@@ -119,47 +149,6 @@ func (s *frescoSession) validateSession(in *pbJob.SMCCmd) error {
 	return nil
 }
 
-func (s *frescoSession) allowPhaseTransition(newPhase pbJob.SMCCmd_Phase) bool {
-	allow := false
-	// Verify A -> B transition by checking the reverse direction: means, from B.
-	// which were valid states A to have reached this goal.
-	switch newPhase {
-	case pbJob.SMCCmd_PREPARE:
-		switch s.phase {
-		case startPhase, pbJob.SMCCmd_SESSION:
-			allow = true
-		}
-
-	case pbJob.SMCCmd_SESSION:
-		switch s.phase {
-		case pbJob.SMCCmd_PREPARE:
-			allow = true
-		}
-
-		// We do not need to handle the ABORT case separately as the SESSION phase
-		// is already the last valid state. There is no way back.
-	}
-	// Update phase
-	if allow {
-		s.phase = newPhase
-	} else {
-		s.phase = pbJob.SMCCmd_ABORT
-	}
-
-	return allow
-}
-
-func typeToPhase(in *pbJob.SMCCmd) pbJob.SMCCmd_Phase {
-	switch in.Payload.(type) {
-	case *pbJob.SMCCmd_Prepare:
-		return pbJob.SMCCmd_PREPARE
-	case *pbJob.SMCCmd_Session:
-		return pbJob.SMCCmd_SESSION
-	default:
-		return pbJob.SMCCmd_ABORT
-	}
-}
-
 func (m *frescoSession) Err() error {
-	return nil
+	return fmt.Errorf("not implemented")
 }

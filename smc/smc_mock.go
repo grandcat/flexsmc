@@ -49,7 +49,7 @@ func (con *smcConnectorMock) RequestSession(ctx context.Context) (Session, error
 
 type smcSessionMock struct {
 	ctx context.Context
-	id  uint64
+	id  string
 	// For returning our resources, send struct{}{}.
 	done chan<- struct{}
 
@@ -60,7 +60,7 @@ type smcSessionMock struct {
 
 const initPhase = -1
 
-func (s *smcSessionMock) Init(ctx context.Context, id uint64) error {
+func (s *smcSessionMock) Init(ctx context.Context, id string) error {
 	s.ctx = ctx
 	s.id = id
 	s.phase = initPhase
@@ -68,7 +68,7 @@ func (s *smcSessionMock) Init(ctx context.Context, id uint64) error {
 	return nil
 }
 
-func (s *smcSessionMock) ID() uint64 {
+func (s *smcSessionMock) ID() string {
 	return s.id
 }
 
@@ -77,7 +77,7 @@ func (s *smcSessionMock) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more b
 	more = true
 
 	if err := s.validateSession(in); err != nil {
-		out, more = sendError(ErrSessionID)
+		out, more = reportError(ErrSessionID)
 		// SMCCmd_ABORT is irreversible. Consequently, the session is teared down.
 		s.phase = pbJob.SMCCmd_ABORT
 		return
@@ -99,12 +99,12 @@ func (s *smcSessionMock) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more b
 		}
 
 	default:
-		out, more = sendError(ErrInvTransition)
+		out, more = reportError(ErrInvTransition)
 		s.phase = pbJob.SMCCmd_ABORT
 	}
 	// Abort on previously noticed invalid phase transition
 	if s.phase == pbJob.SMCCmd_ABORT || out == nil {
-		out, more = sendError(ErrInvTransition)
+		out, more = reportError(ErrInvTransition)
 	}
 	return
 }
