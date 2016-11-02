@@ -3,6 +3,7 @@ package smc
 import (
 	"errors"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
 	"fmt"
@@ -36,15 +37,17 @@ func newFrescoConnector() Connector {
 
 func (con *FrescoConnect) RequestSession(ctx context.Context) (Session, error) {
 	// Connect to local Fresco instance to see if it is present at all
-	client, err := DialSMCClient("")
+	cc, err := DialSocket("")
 	if err != nil {
 		return nil, err
 	}
+	client := proto.NewSMCClient(cc)
 
 	select {
 	case <-con.readyWorkers:
 		// We have some capacities to serve a new SMC session.
 		return &frescoSession{
+			conn:   cc,
 			client: client,
 			done:   con.readyWorkers,
 		}, nil
@@ -57,6 +60,7 @@ func (con *FrescoConnect) RequestSession(ctx context.Context) (Session, error) {
 
 type frescoSession struct {
 	ctx    context.Context
+	conn   *grpc.ClientConn
 	client proto.SMCClient
 	id     string
 	// Resource management
@@ -136,6 +140,7 @@ func (s *frescoSession) TearDown() {
 
 func (s *frescoSession) condFreeResources() {
 	if s.state == requestTearDown {
+		s.conn.Close()
 		// Invalidate session and release worker resource.
 		s.state = stopped
 		s.done <- struct{}{}
