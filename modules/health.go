@@ -40,16 +40,16 @@ func (h *HealthReporter) reportloop() {
 		case <-ticker.C:
 			// Do nothing and ping again on next round :-)
 
-		case <-h.Context.Done():
+		case <-h.context.Done():
 			// Abort by context
-			log.Printf("Health reporter aborted: %v", h.Context.Err())
+			log.Printf("Health reporter aborted: %v", h.context.Err())
 			return
 		}
 	}
 }
 
 func (h *HealthReporter) Ping() error {
-	resp, err := h.GWConn.Ping(h.Context, &proto.SMCInfo{12345})
+	resp, err := h.GWConn.Ping(h.context, &proto.SMCInfo{12345})
 	if err != nil {
 		log.Printf("Could not ping GW: %v", err)
 		return err
