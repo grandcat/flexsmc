@@ -9,6 +9,7 @@ import (
 	"github.com/grandcat/flexsmc/directory"
 	"github.com/grandcat/flexsmc/orchestration"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
+	"github.com/grandcat/flexsmc/smc"
 )
 
 var (
@@ -17,6 +18,8 @@ var (
 	keyFile   = flag.String("key_file", "certs/key_server.pem", "TLS key file")
 	enPairing = flag.Bool("enPairing", true, "Enable or disable pairing phase")
 	peerInfo  = flag.String("peerinfo", "123", "Additional peer information supplied during pairing")
+
+	smcConnSock = flag.String("smcsocket", "", "Custom SMC socket to pass to SMC connector")
 )
 
 func runGateway() {
@@ -63,6 +66,7 @@ func runPeer() {
 			NodeInfo:   *peerInfo,
 			UsePairing: *enPairing,
 		},
+		smcBackend: smc.DefaultSMCConnector(*smcConnSock),
 	}
 	peer := NewPeer(opts)
 	peer.Init()
