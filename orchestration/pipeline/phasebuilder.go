@@ -21,6 +21,10 @@ func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 	// Prepare phase
 	var participants []*pbJob.PreparePhase_Participant
 	for cid, p := range inOut.Participants {
+		// XXX: for testing on localhost: use continous port range
+		if p.Addr.Port < 10000 {
+			p.Addr.Port = 10000 + int(cid)
+		}
 		participants = append(participants, &pbJob.PreparePhase_Participant{
 			AuthID:    string(p.ID),
 			SmcPeerID: int32(cid),
@@ -34,7 +38,6 @@ func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 		Payload: &pbJob.SMCCmd_Prepare{Prepare: &pbJob.PreparePhase{
 			SmcTask:      task,
 			Participants: participants,
-			// SmcPeerID is filled by job worker
 		}},
 	}
 
