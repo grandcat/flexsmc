@@ -33,4 +33,5 @@ type Session interface {
 	Err() error
 }
 
-var DefaultSMCConnector = newSMCConnectorMock()
+// var DefaultSMCConnector = newSMCConnectorMock()
+var DefaultSMCConnector = newFrescoConnector

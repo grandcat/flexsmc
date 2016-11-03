@@ -2,6 +2,7 @@ package smc
 
 import (
 	"errors"
+	"log"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -13,19 +14,21 @@ import (
 	"golang.org/x/net/context"
 )
 
-const parallelSessions int = 2
+const parallelSessions int = 1
 
 var (
 	errInvalidCmd = errors.New("invalid command")
 )
 
 type FrescoConnect struct {
-	readyWorkers chan struct{}
+	backendSocket string
+	readyWorkers  chan struct{}
 }
 
-func newFrescoConnector() Connector {
+func newFrescoConnector(socket string) Connector {
 	c := &FrescoConnect{
-		readyWorkers: make(chan struct{}, parallelSessions),
+		backendSocket: socket,
+		readyWorkers:  make(chan struct{}, parallelSessions),
 	}
 	// Initially fill in amount of sessions our resources are enough for.
 	for i := 0; i < parallelSessions; i++ {
@@ -37,7 +40,7 @@ func newFrescoConnector() Connector {
 
 func (con *FrescoConnect) RequestSession(ctx context.Context) (Session, error) {
 	// Connect to local Fresco instance to see if it is present at all
-	cc, err := DialSocket("")
+	cc, err := DialSocket(con.backendSocket)
 	if err != nil {
 		return nil, err
 	}
@@ -121,8 +124,13 @@ func (s *frescoSession) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more bo
 	}
 
 	switch {
-	case pbJob.CmdResult_SUCCESS == out.Status:
-	case pbJob.CmdResult_ABORTED > out.Status:
+	case pbJob.CmdResult_SUCCESS_DONE == out.Status:
+		// Successful end of session
+		more = false
+		s.state = requestTearDown
+
+	case pbJob.CmdResult_SUCCESS == out.Status,
+		pbJob.CmdResult_ABORTED > out.Status:
 		more = true
 
 	default:
@@ -130,16 +138,27 @@ func (s *frescoSession) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more bo
 		more = false
 		s.state = requestTearDown
 	}
+	log.Printf("SMC_Fresco: more->%v, res->%v", more, out.Status)
 	return
 }
 
 func (s *frescoSession) TearDown() {
-	s.state = requestTearDown
-	s.condFreeResources()
+	if s.state != stopped {
+		s.state = requestTearDown
+		s.condFreeResources()
+
+	} else {
+		log.Printf("SMC_FRESCO: no tear-down, already invoked.")
+	}
 }
 
 func (s *frescoSession) condFreeResources() {
 	if s.state == requestTearDown {
+		// TODO: find better solution
+		if s.client != nil && s.id != "" {
+			s.client.TearDown(context.Background(), &proto.SessionCtx{SessionID: s.id})
+			log.Printf("[%s] Teared-down SMC backend successfully", s.id)
+		}
 		s.conn.Close()
 		// Invalidate session and release worker resource.
 		s.state = stopped

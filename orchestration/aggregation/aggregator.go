@@ -37,7 +37,6 @@ loop:
 			// Transition to new phase
 			if lastProgress < res.Progress {
 				// Process complete phase previously recorded (if any)
-				log.Println("Last progress:", lastProgress)
 				if lastProgress >= 0 {
 					if err := analyzeResultConsistency(msgBuf[lastProgress]); err != nil {
 						return nil, err

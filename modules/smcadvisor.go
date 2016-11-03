@@ -42,14 +42,14 @@ func (s *SMCAdvisor) BlockingSpawn() {
 
 func (s *SMCAdvisor) SpawnBridge() error {
 	// Blocks until stand-by session from SMC backend is available for Reservation.
-	smcSession, err := s.smcConn.RequestSession(s.Context)
+	smcSession, err := s.smcConn.RequestSession(s.context)
 	if err != nil {
 		log.Printf("Reservation of SMC backend failed: %v", err)
 		return err
 	}
 	// once a stand-by SMC instance is available, a C&C channel is established
 	// to receive SMC commands.
-	stream, err := s.GWConn.AwaitSMCRound(s.Context)
+	stream, err := s.GWConn.AwaitSMCRound(s.context)
 	if err != nil {
 		smcSession.TearDown()
 		log.Printf("Could not receive SMC cmds: %v", err)
@@ -82,7 +82,14 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 		log.Printf(">> [%v] SMC Cmd: %v", time.Now(), in)
 		// Initialize session on first interaction.
 		if cntCmds == 0 {
-			smcSess.Init(stream.Context(), in.SessionID)
+			if err := smcSess.Init(stream.Context(), in.SessionID); err != nil {
+				log.Printf("smcadvisor: could not init: %v", err)
+				stream.Send(&pbJob.CmdResult{
+					Status: pbJob.CmdResult_ABORTED,
+					Msg:    "invalid session",
+				})
+				break
+			}
 		}
 		// Trigger state machine in SMC backend and send generated response.
 		var resp *pbJob.CmdResult
@@ -93,6 +100,7 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 
 		cntCmds++
 	}
+
 	// A new stream is created for the next SMC round. So close this one.
 	// XXX: reuse stream to save resources, but requires stream management
 	stream.CloseSend()

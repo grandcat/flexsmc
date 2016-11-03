@@ -46,7 +46,7 @@ func NewPeer(opts PeerOptions) *Peer {
 
 	smcConn := opts.smcBackend
 	if smcConn == nil {
-		smcConn = smc.DefaultSMCConnector
+		smcConn = smc.DefaultSMCConnector("")
 	}
 
 	return &Peer{

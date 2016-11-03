@@ -21,7 +21,10 @@ type smcConnectorMock struct {
 	readyWorkers chan struct{}
 }
 
-func newSMCConnectorMock() Connector {
+func newSMCConnectorMock(socket string) Connector {
+	// Do not need the socket, but keep it the same for all implementations.
+	_ = socket
+
 	c := &smcConnectorMock{
 		readyWorkers: make(chan struct{}, ParallelSessions),
 	}

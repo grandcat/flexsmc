@@ -25,6 +25,8 @@ type JobWatcher interface {
 	// Progress must NOT mix. This means there is an unique transition from
 	// phase 0 -> phase 1, for instance.
 	Result() <-chan PeerResult
+	// TODO: abort or stop job if it makes no sense to continue
+
 	// Err is non-nil if a critical error occurred during operation.
 	// It should be called first when Result() chan was called from our side.
 	Err() *PeerError

@@ -158,5 +158,10 @@ func fullSMCRound(socket string, id int32) error {
 	}
 	log.Printf("NextCmd Session: %s", r)
 
+	// 4. Tear-down
+	// Use new context as it must be done also for a stream abort.
+	r, _ = c.TearDown(context.Background(), &proto.SessionCtx{SessionID: "123456789"})
+	log.Printf("Teardown Session: %v", r)
+
 	return nil
 }
