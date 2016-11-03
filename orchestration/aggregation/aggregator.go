@@ -19,7 +19,7 @@ func (a *Aggregator) Process(ctx context.Context, in worker.JobWatcher) (*pbJob.
 	numParticipants := len(in.Job().Participants)
 	msgBuf := make([][]*pbJob.CmdResult, 2)
 
-	var lastProgress worker.TaskPhase = -1
+	var lastProgress worker.JobPhase = -1
 loop:
 	for {
 		select {

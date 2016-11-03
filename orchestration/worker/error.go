@@ -3,12 +3,12 @@ package worker
 import "github.com/grandcat/flexsmc/directory"
 
 type PeerError struct {
-	Progress TaskPhase
+	Progress JobPhase
 	Peers    []*directory.PeerInfo
 	Err      error
 }
 
-func NewPeerErr(e error, progress TaskPhase, peers []*directory.PeerInfo) *PeerError {
+func NewPeerErr(e error, progress JobPhase, peers []*directory.PeerInfo) *PeerError {
 	return &PeerError{
 		Err:      e,
 		Progress: progress,

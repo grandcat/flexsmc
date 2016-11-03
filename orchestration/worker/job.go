@@ -32,10 +32,10 @@ type JobWatcher interface {
 	Err() *PeerError
 }
 
-type TaskPhase int32 //< slightly coupled to pbJob.SMCCmd_Phase
+type JobPhase int32 //< slightly coupled to pbJob.SMCCmd_Phase
 
 type PeerResult struct {
-	Progress TaskPhase
+	Progress JobPhase
 	Response *pbJob.CmdResult
 }
 
@@ -47,7 +47,7 @@ type job struct {
 	ctx   context.Context
 	instr JobInstruction
 	// Context for worker processing this job
-	progress TaskPhase
+	progress JobPhase
 	chats    map[auth.PeerID]directory.ChatWithPeer
 }
 
