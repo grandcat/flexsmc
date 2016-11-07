@@ -88,6 +88,7 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 					Status: pbJob.CmdResult_ABORTED,
 					Msg:    "invalid session",
 				})
+				moreCmds = false
 				break
 			}
 		}
@@ -104,4 +105,6 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 	// A new stream is created for the next SMC round. So close this one.
 	// XXX: reuse stream to save resources, but requires stream management
 	stream.CloseSend()
+
+	log.Printf("Close chat to GW. Suspected more msgs from GW->%v", moreCmds)
 }
