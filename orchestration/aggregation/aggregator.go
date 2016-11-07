@@ -17,7 +17,7 @@ type Aggregator struct {
 
 func (a *Aggregator) Process(ctx context.Context, in worker.JobWatcher) (*pbJob.SMCResult, error) {
 	numParticipants := len(in.Job().Participants)
-	msgBuf := make([][]*pbJob.CmdResult, 2)
+	msgBuf := make([][]*pbJob.CmdResult, len(in.Job().Tasks))
 
 	var lastProgress worker.JobPhase = -1
 loop:
@@ -34,6 +34,7 @@ loop:
 				// All messages complete
 				break loop
 			}
+
 			// Transition to new phase
 			if lastProgress < res.Progress {
 				// Process complete phase previously recorded (if any)
