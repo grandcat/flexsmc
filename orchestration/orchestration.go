@@ -75,6 +75,10 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 				return nil, err
 			}
 			res, err = fo.postAggr.Process(ctx, job)
+			if err != nil {
+				// Possibly, job is halted. Abort it now as we do not want to retry.
+				job.Abort()
+			}
 
 		} else {
 			aerr := job.Abort()

@@ -31,11 +31,11 @@ type JobWatcher interface {
 	// Progress must NOT mix. This means there is an unique transition from
 	// phase 0 -> phase 1, for instance.
 	Result() <-chan PeerResult
-	// Abort tears down all open chat connections. It only works if the job is
+	// Abort tears down all connected chats. It only works if the job is
 	// currently halted.
 	Abort() error
 	// Err is non-nil if a critical error occurred during operation.
-	// It should be called first when Result() chan was called from our side.
+	// It should be called first when Result() chan was closed from our side.
 	Err() *PeerError
 }
 
@@ -115,6 +115,7 @@ func (j *job) Abort() error {
 
 	if j.lastErr.Status == Halted {
 		j.closeAllChats()
+		j.lastErr = nil
 	}
 	log.Printf("Job aborted successfully.")
 
@@ -157,6 +158,7 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 	}
 
 	if len(errPeers) > 0 {
+		// TODO: set status depending on what the requestor wants to handle (-> handleErrFlags)
 		return NewPeerErr(ctx.Err(), Aborted, j.progress, errPeers)
 	}
 	return nil
@@ -204,7 +206,7 @@ func (j *job) closeAllChats() {
 	j.chats = nil
 }
 
-var errCtxOrStreamFailure = errors.New("ctx timeout or stream failure")
+var ErrCtxOrStreamFailure = errors.New("ctx timeout or stream failure")
 
 func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob.CmdResult, *PeerError) {
 	// First, disseminate the job to all peers.
@@ -215,7 +217,7 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 	// Receive
 	// Each peer delivers its response independently from each other. If one peer blocks,
 	// there is still the result of all other peers after the timeout occurs.
-	handleErrFlags := pbJob.CmdResult_Status(0) | pbJob.CmdResult_ERR_CLASS_NORM | pbJob.CmdResult_ERR_CLASS_COMM
+	handleErrFlags := pbJob.CmdResult_ERR_CLASS_NORM | pbJob.CmdResult_ERR_CLASS_COMM
 
 	var accumulatedErrFlags pbJob.CmdResult_Status
 	var errPeers []*directory.PeerInfo
@@ -260,7 +262,7 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 		status = Aborted
 		fallthrough
 	case len(errPeers) > 0:
-		err = NewPeerErr(errCtxOrStreamFailure, status, j.progress, errPeers)
+		err = NewPeerErr(ErrCtxOrStreamFailure, status, j.progress, errPeers)
 	}
 
 	return resps, err
