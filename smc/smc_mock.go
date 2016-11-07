@@ -118,7 +118,7 @@ func (s *smcSessionMock) doPrepare(info *pbJob.PreparePhase) *pbJob.CmdResult {
 		Msg:    "->proto.Prepare: nice, but I am stupid",
 	}
 	// We're doing hard work :)
-	// time.Sleep(time.Second * 1)
+	time.Sleep(time.Second * 5)
 
 	return res
 }
@@ -175,7 +175,7 @@ func (s *smcSessionMock) allowPhaseTransition(newPhase pbJob.SMCCmd_Phase) bool 
 	switch newPhase {
 	case pbJob.SMCCmd_PREPARE:
 		switch s.phase {
-		case initPhase, pbJob.SMCCmd_SESSION:
+		case initPhase, pbJob.SMCCmd_PREPARE:
 			allow = true
 		}
 
