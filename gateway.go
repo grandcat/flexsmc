@@ -62,7 +62,6 @@ func (n *Gateway) Ping(ctx context.Context, in *proto.SMCInfo) (*pbJob.CmdResult
 func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error {
 	streamCtx := stream.Context()
 	a, _ := auth.FromAuthContext(streamCtx)
-	log.Println(">>Stream requested from:", a.ID)
 
 	p := n.reg.GetOrCreate(a.ID)
 	p.Touch(a.Addr)

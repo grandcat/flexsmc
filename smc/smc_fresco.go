@@ -138,7 +138,7 @@ func (s *frescoSession) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more bo
 		more = false
 		s.state = requestTearDown
 	}
-	log.Printf("SMC_Fresco: more->%v, res->%v", more, out.Status)
+	log.Printf("SMC_Fresco: more->%v, res->%v, msg->%s", more, out.Status, out.Msg)
 	return
 }
 
