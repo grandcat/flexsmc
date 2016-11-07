@@ -41,13 +41,24 @@ func (pc *PeerNetwork) SubmitJob(ctx context.Context, description JobInstruction
 	return j, nil
 }
 
-func (pc *PeerNetwork) RescheduleOpenTask() {
-	// TODO:
-	// Reuse an existing tasks with opened chats so we do not need to reopen them.
-	// This safes some time and resources.
-	// Currently the assumption is that peers might only be removed. Adding new peers
-	// might result in undefined behavior as they missed phases previously sent
-	// (if some progress was made).
+func (pc *PeerNetwork) RescheduleOpenJob(ctx context.Context, haltedJob JobWatcher, instruction JobInstruction) error {
+	j, ok := haltedJob.(*job)
+	if !ok {
+		panic("Provided JobWatcher not compatible to internal job struct.")
+	}
+
+	err := j.reuseJob(ctx, instruction)
+	if err != nil {
+		return err
+	}
+
+	select {
+	case pc.jobs <- j:
+		// Schedule new task. Everything is fine.
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return nil
 }
 
 func (pc *PeerNetwork) jobWorker() {
@@ -66,7 +77,7 @@ func processJob(j *job) {
 	if err != nil {
 		// Minimum 1 chat failed. Abort early so GW can schedule the same task for a subset
 		// of the current target peers if applicable.
-		j.abort(err)
+		j.haltOrAbort(err)
 		return
 	}
 	// Work through all phases
@@ -79,7 +90,7 @@ func processJob(j *job) {
 			j.sendFeedback(r)
 		}
 		if err != nil {
-			j.abort(err)
+			j.haltOrAbort(err)
 			return
 		}
 
@@ -87,7 +98,6 @@ func processJob(j *job) {
 	}
 	// Notify client that we are done here.
 	close(j.feedback)
-
 	// No more instructions from our side for the group of peers.
 	j.closeAllChats()
 }

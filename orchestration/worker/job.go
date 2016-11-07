@@ -11,6 +11,12 @@ import (
 	auth "github.com/grandcat/srpc/authentication"
 )
 
+var (
+	ErrNewParticipants   = errors.New("cannot reuse job for new participants")
+	ErrIncompatibleTasks = errors.New("tasks of old and new job are incompatible")
+	ErrNotHalted         = errors.New("job is not halted")
+)
+
 type JobInstruction struct {
 	Tasks        []*pbJob.SMCCmd
 	Participants map[directory.ChannelID]*directory.PeerInfo
@@ -25,8 +31,9 @@ type JobWatcher interface {
 	// Progress must NOT mix. This means there is an unique transition from
 	// phase 0 -> phase 1, for instance.
 	Result() <-chan PeerResult
-	// TODO: abort or stop job if it makes no sense to continue
-
+	// Abort tears down all open chat connections. It only works if the job is
+	// currently halted.
+	Abort() error
 	// Err is non-nil if a critical error occurred during operation.
 	// It should be called first when Result() chan was called from our side.
 	Err() *PeerError
@@ -59,12 +66,59 @@ func newJob(ctx context.Context, instruction JobInstruction) *job {
 	}
 }
 
+func (j *job) reuseJob(ctx context.Context, newInstruction JobInstruction) error {
+	// Jobs still compatible?
+	// XXX: do more in-depth incompatibility check
+	if len(newInstruction.Tasks) < len(j.instr.Tasks) {
+		return ErrIncompatibleTasks
+	}
+	// All participants must already be connected. New ones are not accepted as
+	// their progress will not be in sync to the rest.
+	for cid, p := range j.instr.Participants {
+		pch, exists := j.chats[p.ID]
+		if !exists {
+			return ErrNewParticipants
+		}
+		// Set new channelID as it might have changed.
+		pch.UpdateMetadata(cid)
+	}
+	// All required chats are there, but thre are more than that. Clean up.
+	if true || len(newInstruction.Participants) < len(j.chats) {
+		j.closeUnusedChats()
+	}
+
+	j.mu.Lock()
+	j.ctx = ctx
+	j.feedback = make(chan PeerResult)
+	j.lastErr = nil
+	j.instr = newInstruction
+	j.mu.Unlock()
+
+	return nil
+}
+
 func (j *job) Job() JobInstruction {
 	return j.instr
 }
 
 func (j *job) Result() <-chan PeerResult {
 	return j.feedback
+}
+
+func (j *job) Abort() error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	// Job is still running. Do not allow abort here for now.
+	if j.lastErr == nil {
+		return ErrNotHalted
+	}
+
+	if j.lastErr.Status == Halted {
+		j.closeAllChats()
+	}
+	log.Printf("Job aborted successfully.")
+
+	return nil
 }
 
 func (j *job) Err() *PeerError {
@@ -103,24 +157,50 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 	}
 
 	if len(errPeers) > 0 {
-		return NewPeerErr(ctx.Err(), j.progress, errPeers)
+		return NewPeerErr(ctx.Err(), Aborted, j.progress, errPeers)
 	}
 	return nil
 }
 
-// removePeerChatdeletes the chats to these peers.
+// revokePeerChats tears down and delete the chats to these peers.
 // It is essential to do so that a resubmitted job has a new chance to
 // initiate a new chat to a previously faulty peer.
-func (j *job) removePeerChats(peers []*directory.PeerInfo) {
+func (j *job) revokePeerChats(peers []*directory.PeerInfo) {
 	for _, p := range peers {
-		// j.chats[p.ID].Close()
+		j.revokePeerChat(p)
+	}
+}
+
+func (j *job) revokePeerChat(p *directory.PeerInfo) {
+	// Note: add mutex if multiple goroutines alter this structure.
+	if pch, ok := j.chats[p.ID]; ok {
+		pch.Close()
 		delete(j.chats, p.ID)
 	}
 }
 
+func (j *job) closeUnusedChats() {
+	for _, pch := range j.chats {
+		activePeer := pch.Peer()
+		needed := false
+	inner:
+		for _, reqPeer := range j.instr.Participants {
+			if activePeer == reqPeer {
+				needed = true
+				break inner
+			}
+		}
+		if !needed {
+			pch.Close()
+			delete(j.chats, activePeer.ID)
+			log.Printf("Remove unused peer chat for %v", activePeer.ID)
+		}
+	}
+}
+
 func (j *job) closeAllChats() {
-	for _, ch := range j.chats {
-		ch.Close()
+	for _, pch := range j.chats {
+		pch.Close()
 	}
 	j.chats = nil
 }
@@ -130,36 +210,60 @@ var errCtxOrStreamFailure = errors.New("ctx timeout or stream failure")
 func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob.CmdResult, *PeerError) {
 	// First, disseminate the job to all peers.
 	// Then, collect all results, but expect the results to be there until timeout occurs.
-
 	for _, pch := range j.chats {
 		pch.InstructSafe(cmd)
-		// pch.Instruct() <- cmd
 	}
 	// Receive
 	// Each peer delivers its response independently from each other. If one peer blocks,
 	// there is still the result of all other peers after the timeout occurs.
+	handleErrFlags := pbJob.CmdResult_Status(0) | pbJob.CmdResult_ERR_CLASS_NORM
+
+	var accumulatedErrFlags pbJob.CmdResult_Status
 	var errPeers []*directory.PeerInfo
 	resps := make([]*pbJob.CmdResult, 0, len(j.chats))
 	for _, pch := range j.chats {
-		resp, err := pullRespUntilDone(ctx, pch.GetFeedback())
+		resp, commErr := pullRespUntilDone(ctx, pch.GetFeedback())
+
+		var errFlag pbJob.CmdResult_Status
 		switch {
-		case err != nil:
-			fallthrough
-		case resp.Status >= pbJob.CmdResult_STREAM_ERR:
+		case commErr != nil:
+			errFlag = pbJob.CmdResult_STREAM_ERR
+		case (resp.Status & pbJob.CmdResult_ALL_ERROR_CLASSES) > 0:
+			errFlag = resp.Status & pbJob.CmdResult_ALL_ERROR_CLASSES
+		}
+		if (errFlag & pbJob.CmdResult_ALL_ERROR_CLASSES) > 0 {
+			accumulatedErrFlags |= errFlag
 			errPeers = append(errPeers, pch.Peer())
-			log.Printf("[%s] job communication failed: %v", pch.Peer().ID, err)
-			pch.Close()
+			log.Printf("[%s] peer job failed: %v, Reason: %s",
+				pch.Peer().ID, commErr, resp.Status.String())
+
+			// Special case: communication errors
+			// Remove affected peers directly as their communication channel died anyway
+			// and might cause problems in future when a job is reassigned.
+			if (errFlag & pbJob.CmdResult_ERR_CLASS_COMM) > 0 {
+				j.revokePeerChat(pch.Peer())
+				log.Printf("[%s] kicking peer. Comm chan died.", pch.Peer().ID)
+			}
 			continue
 		}
+
 		resps = append(resps, resp)
 		log.Printf(">>[%s] Response from peer: %v", pch.Peer().ID, resp)
 	}
 
 	var err *PeerError
-	if len(errPeers) > 0 {
-		j.removePeerChats(errPeers)
-		err = NewPeerErr(errCtxOrStreamFailure, j.progress, errPeers)
+	status := Halted
+	switch {
+	// If any error is unhandled by the originator of this job, we cannot proceed.
+	// Mark job as aborted.
+	case (handleErrFlags & accumulatedErrFlags) != accumulatedErrFlags:
+		j.revokePeerChats(errPeers)
+		status = Aborted
+		fallthrough
+	case len(errPeers) > 0:
+		err = NewPeerErr(errCtxOrStreamFailure, status, j.progress, errPeers)
 	}
+
 	return resps, err
 }
 
@@ -206,12 +310,15 @@ func (j *job) sendFeedback(resp *pbJob.CmdResult) {
 	j.feedback <- PeerResult{Progress: j.progress, Response: resp}
 }
 
-func (j *job) abort(e *PeerError) {
+func (j *job) haltOrAbort(e *PeerError) {
 	j.mu.Lock()
 	j.lastErr = e
 	j.mu.Unlock()
 	// Notify client (job originator) about error
 	close(j.feedback)
 
-	j.closeAllChats()
+	if e.Status == Aborted {
+		j.closeAllChats()
+		log.Printf("Job aborted. Closing all comm channels.")
+	}
 }

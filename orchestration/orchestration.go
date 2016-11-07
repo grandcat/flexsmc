@@ -56,5 +56,12 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 	}
 	// 3. Wait for ingress, aggregate data and do reasoning
 	res, err := fo.postAggr.Process(ctx, job)
+
+	// XXX: 4. Try rescheduling job, but excluding the errorneous peers for now
+	if err != nil {
+		log.Printf(">> Orchestration !!Abort: %v", job.Abort())
+		// rerr := fo.worker.RescheduleOpenJob(ctx, job, *jobInstr)
+		// return nil, rerr
+	}
 	return res, err
 }
