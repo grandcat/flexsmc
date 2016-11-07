@@ -93,6 +93,9 @@ func newJob(ctx context.Context, instruction JobInstruction, opts []JobOption) *
 func (j *job) recycleJob(ctx context.Context, newInstr JobInstruction, opts []JobOption) error {
 	// Jobs still compatible?
 	// XXX: do more in-depth incompatibility check
+	if !j.isJobHalted() {
+		return ErrNotHalted
+	}
 	if len(newInstr.Tasks) < len(j.instr.Tasks) {
 		return ErrIncompatibleTasks
 	}
@@ -133,19 +136,15 @@ func (j *job) Result() <-chan PeerResult {
 }
 
 func (j *job) Abort() error {
-	j.mu.Lock()
-	defer j.mu.Unlock()
-	// Job is still running. Do not allow abort here for now.
-	if j.lastErr == nil {
+	if !j.isJobHalted() {
 		return ErrNotHalted
 	}
+	j.closeAllChats()
+	j.mu.Lock()
+	j.lastErr = nil
+	j.mu.Unlock()
 
-	if j.lastErr.Status == Halted {
-		j.closeAllChats()
-		j.lastErr = nil
-		log.Printf("Job aborted successfully.")
-	}
-
+	log.Printf("Job aborted successfully.")
 	return nil
 }
 
@@ -153,6 +152,16 @@ func (j *job) Err() *PeerError {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.lastErr
+}
+
+func (j *job) isJobHalted() bool {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	// Job is still running or finished if no error exists.
+	if j.lastErr != nil {
+		return j.lastErr.Status == Halted
+	}
+	return false
 }
 
 // API facing communication with worker peers
