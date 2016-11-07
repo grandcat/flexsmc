@@ -47,7 +47,7 @@ func (pc *PeerNetwork) RescheduleOpenJob(ctx context.Context, haltedJob JobWatch
 		panic("Provided JobWatcher not compatible to internal job struct.")
 	}
 
-	err := j.reuseJob(ctx, instruction)
+	err := j.recycleJob(ctx, instruction)
 	if err != nil {
 		return err
 	}

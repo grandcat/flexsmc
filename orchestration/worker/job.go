@@ -66,7 +66,7 @@ func newJob(ctx context.Context, instruction JobInstruction) *job {
 	}
 }
 
-func (j *job) reuseJob(ctx context.Context, newInstruction JobInstruction) error {
+func (j *job) recycleJob(ctx context.Context, newInstruction JobInstruction) error {
 	// Jobs still compatible?
 	// XXX: do more in-depth incompatibility check
 	if len(newInstruction.Tasks) < len(j.instr.Tasks) {
