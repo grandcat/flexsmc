@@ -117,14 +117,22 @@ func (pi *PeerInfo) UnsubscribeCmdChan() {
 	log.Printf("PeerInfo: [%s] UnsubscribeCmdChan", pi.ID)
 }
 
-// RequestChat: channel container to communicate with this peer
+// RequestChat provides a chat to communicate with this peer
 func (pi *PeerInfo) RequestChat(ctx context.Context, cid ChannelID) (ChatWithPeer, error) {
 	chat := newTalker(pi, cid)
+	// Prioritize the request over a context timeout.
+	// https://groups.google.com/d/msg/golang-nuts/M2xjN_yWBiQ/QzsWuoV4-IIJ
 	select {
 	case pi.requestedSessions <- chat:
 		return chat, nil
 
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	default:
+		select {
+		case pi.requestedSessions <- chat:
+			return chat, nil
+
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 }
