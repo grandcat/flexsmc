@@ -59,9 +59,27 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 
 	// XXX: 4. Try rescheduling job, but excluding the errorneous peers for now
 	if err != nil {
-		log.Printf(">> Orchestration !!Abort: %v", job.Abort())
-		// rerr := fo.worker.RescheduleOpenJob(ctx, job, *jobInstr)
-		// return nil, rerr
+		log.Printf("PREV RESULT BEFORE RESUBMIT: %v [Error: %v]", res, err)
+		// Let's assume a peer dropped its connection. So just rerun the job pipeline
+		// should suffice in most cases. Let's try :)
+		newJobInstr, _ := fo.prePipe.Process(task)
+		// If participants differ in both instruction sets, our assumption is correct and
+		// we can continue. Otherwise, something else causes a problem. Then, it is not
+		// useful resubmitting the job as it will fail again immediately.
+		if len(newJobInstr.Participants) < len(jobInstr.Participants) {
+			log.Printf("Job seems to differ, so start resubmit")
+			log.Printf("New parties: %v", newJobInstr.Participants)
+			err = fo.worker.RescheduleOpenJob(ctx, job, *newJobInstr)
+			if err != nil {
+				log.Printf("Orchestration: job resubmit failed: %v", err.Error())
+				return nil, err
+			}
+			res, err = fo.postAggr.Process(ctx, job)
+
+		} else {
+			aerr := job.Abort()
+			log.Printf(">> Orchestration !!Abort: %v", aerr)
+		}
 	}
 	return res, err
 }
