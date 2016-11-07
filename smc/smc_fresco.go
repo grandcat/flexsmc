@@ -130,7 +130,7 @@ func (s *frescoSession) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more bo
 		s.state = requestTearDown
 
 	case pbJob.CmdResult_SUCCESS == out.Status,
-		pbJob.CmdResult_ABORTED > out.Status:
+		(pbJob.CmdResult_SEVERE_ERROR_CLASSES & out.Status) == 0:
 		more = true
 
 	default:
