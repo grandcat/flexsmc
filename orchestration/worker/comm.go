@@ -28,8 +28,8 @@ func NewPeerNetwork(r *directory.Registry) *PeerNetwork {
 	return pc
 }
 
-func (pc *PeerNetwork) SubmitJob(ctx context.Context, description JobInstruction) (JobWatcher, error) {
-	j := newJob(ctx, description)
+func (pc *PeerNetwork) SubmitJob(ctx context.Context, description JobInstruction, opts ...JobOption) (JobWatcher, error) {
+	j := newJob(ctx, description, opts)
 	// Enqueue for worker pool
 	select {
 	case pc.jobs <- j:
@@ -41,13 +41,13 @@ func (pc *PeerNetwork) SubmitJob(ctx context.Context, description JobInstruction
 	return j, nil
 }
 
-func (pc *PeerNetwork) RescheduleOpenJob(ctx context.Context, haltedJob JobWatcher, instruction JobInstruction) error {
+func (pc *PeerNetwork) RescheduleOpenJob(ctx context.Context, haltedJob JobWatcher, instruction JobInstruction, opts ...JobOption) error {
 	j, ok := haltedJob.(*job)
 	if !ok {
 		panic("Provided JobWatcher not compatible to internal job struct.")
 	}
 
-	err := j.recycleJob(ctx, instruction)
+	err := j.recycleJob(ctx, instruction, opts)
 	if err != nil {
 		return err
 	}

@@ -46,27 +46,51 @@ type PeerResult struct {
 	Response *pbJob.CmdResult
 }
 
+type options struct {
+	handleErrFlags pbJob.CmdResult_Status
+}
+
+// JobOption fills the option struct to configure request-specific settings.
+type JobOption func(*options)
+
+// HandleErrFlags sets the error classes the requestor wants to handle on its
+// own. This will halt the job before a new phase.
+// Unhandled error classes cause the engine to stop and tear-down gracefully
+// the job. In all cases, Err() will state the problem.
+func HandleErrFlags(flags pbJob.CmdResult_Status) JobOption {
+	return func(o *options) {
+		o.handleErrFlags = flags
+	}
+}
+
 type job struct {
-	feedback chan PeerResult
-	lastErr  *PeerError
-	mu       sync.Mutex
 	// Instruction with job context, target peers and their task to do
 	ctx   context.Context
 	instr JobInstruction
+	opts  options
 	// Context for worker processing this job
 	progress JobPhase
 	chats    map[auth.PeerID]directory.ChatWithPeer
+	// Feedback
+	feedback chan PeerResult
+	lastErr  *PeerError
+	mu       sync.Mutex
 }
 
-func newJob(ctx context.Context, instruction JobInstruction) *job {
+func newJob(ctx context.Context, instruction JobInstruction, opts []JobOption) *job {
+	var conf options
+	for _, o := range opts {
+		o(&conf)
+	}
 	return &job{
 		feedback: make(chan PeerResult),
 		ctx:      ctx,
 		instr:    instruction,
+		opts:     conf,
 	}
 }
 
-func (j *job) recycleJob(ctx context.Context, newInstr JobInstruction) error {
+func (j *job) recycleJob(ctx context.Context, newInstr JobInstruction, opts []JobOption) error {
 	// Jobs still compatible?
 	// XXX: do more in-depth incompatibility check
 	if len(newInstr.Tasks) < len(j.instr.Tasks) {
@@ -92,6 +116,9 @@ func (j *job) recycleJob(ctx context.Context, newInstr JobInstruction) error {
 	j.feedback = make(chan PeerResult)
 	j.lastErr = nil
 	j.instr = newInstr
+	for _, o := range opts {
+		o(&j.opts)
+	}
 	j.mu.Unlock()
 
 	return nil
@@ -116,8 +143,8 @@ func (j *job) Abort() error {
 	if j.lastErr.Status == Halted {
 		j.closeAllChats()
 		j.lastErr = nil
+		log.Printf("Job aborted successfully.")
 	}
-	log.Printf("Job aborted successfully.")
 
 	return nil
 }
@@ -150,6 +177,12 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 		}
 		pch, err := p.RequestChat(ctx, cid)
 		if err != nil {
+			// Note: this way of determining peers who do not want to talk, might be unfair.
+			// Given one peer blocks chatting, the context will cause an abort. All subsequent
+			// peers are in danger that they are listed as well if their routines do not wake up
+			// fast enough. RequestChat(..) contains a little work-around, though it is ugly.
+			// TODO: think about parallelizing this as well.
+			// E.g. use channel to receive successful talk requests.
 			errPeers = append(errPeers, p)
 			log.Printf("[%s] Talk request not handled fast enough. Aborting.", p.ID)
 			continue
@@ -158,8 +191,14 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 	}
 
 	if len(errPeers) > 0 {
-		// TODO: set status depending on what the requestor wants to handle (-> handleErrFlags)
-		return NewPeerErr(ctx.Err(), Aborted, j.progress, errPeers)
+		var status JobImplication
+		if (j.opts.handleErrFlags & pbJob.CmdResult_ERR_CLASS_COMM) > 0 {
+			status = Halted
+		} else {
+			status = Aborted
+		}
+
+		return NewPeerErr(ctx.Err(), status, j.progress, errPeers)
 	}
 	return nil
 }
@@ -217,8 +256,6 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 	// Receive
 	// Each peer delivers its response independently from each other. If one peer blocks,
 	// there is still the result of all other peers after the timeout occurs.
-	handleErrFlags := pbJob.CmdResult_ERR_CLASS_NORM | pbJob.CmdResult_ERR_CLASS_COMM
-
 	var accumulatedErrFlags pbJob.CmdResult_Status
 	var errPeers []*directory.PeerInfo
 	resps := make([]*pbJob.CmdResult, 0, len(j.chats))
@@ -257,7 +294,7 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 	switch {
 	// If any error is unhandled by the originator of this job, we cannot proceed.
 	// Mark job as aborted.
-	case (handleErrFlags & accumulatedErrFlags) != accumulatedErrFlags:
+	case (j.opts.handleErrFlags & accumulatedErrFlags) != accumulatedErrFlags:
 		j.revokePeerChats(errPeers)
 		status = Aborted
 		fallthrough

@@ -49,7 +49,7 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 	// 2. Submit job to worker pool
 	log.Println(">> Pipeline peers:", jobInstr.Participants)
 	log.Println(">> Pipeline phases:", jobInstr.Tasks)
-	job, err := fo.worker.SubmitJob(ctx, *jobInstr)
+	job, err := fo.worker.SubmitJob(ctx, *jobInstr, worker.HandleErrFlags(pbJob.CmdResult_ERR_CLASS_NORM|pbJob.CmdResult_ERR_CLASS_COMM))
 	if err != nil {
 		log.Printf("Orchestration: job submission failed: %v", err.Error())
 		return nil, err
@@ -69,14 +69,15 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 		if len(newJobInstr.Participants) < len(jobInstr.Participants) {
 			log.Printf("Job seems to differ, so start resubmit")
 			log.Printf("New parties: %v", newJobInstr.Participants)
-			err = fo.worker.RescheduleOpenJob(ctx, job, *newJobInstr)
+			err = fo.worker.RescheduleOpenJob(ctx, job, *newJobInstr, worker.HandleErrFlags(0))
 			if err != nil {
 				log.Printf("Orchestration: job resubmit failed: %v", err.Error())
 				return nil, err
 			}
 			res, err = fo.postAggr.Process(ctx, job)
 			if err != nil {
-				// Possibly, job is halted. Abort it now as we do not want to retry.
+				// Should not be necessary to abort manually as every error should abort the
+				// complete job due to worker.HandleErrFlags(0) .
 				job.Abort()
 			}
 
