@@ -66,15 +66,15 @@ func newJob(ctx context.Context, instruction JobInstruction) *job {
 	}
 }
 
-func (j *job) recycleJob(ctx context.Context, newInstruction JobInstruction) error {
+func (j *job) recycleJob(ctx context.Context, newInstr JobInstruction) error {
 	// Jobs still compatible?
 	// XXX: do more in-depth incompatibility check
-	if len(newInstruction.Tasks) < len(j.instr.Tasks) {
+	if len(newInstr.Tasks) < len(j.instr.Tasks) {
 		return ErrIncompatibleTasks
 	}
 	// All participants must already be connected. New ones are not accepted as
 	// their progress will not be in sync to the rest.
-	for cid, p := range j.instr.Participants {
+	for cid, p := range newInstr.Participants {
 		pch, exists := j.chats[p.ID]
 		if !exists {
 			return ErrNewParticipants
@@ -82,8 +82,8 @@ func (j *job) recycleJob(ctx context.Context, newInstruction JobInstruction) err
 		// Set new channelID as it might have changed.
 		pch.UpdateMetadata(cid)
 	}
-	// All required chats are there, but thre are more than that. Clean up.
-	if true || len(newInstruction.Participants) < len(j.chats) {
+	// All required chats are there, but there can be more than that. Clean up.
+	if true || len(newInstr.Participants) < len(j.chats) {
 		j.closeUnusedChats()
 	}
 
@@ -91,7 +91,7 @@ func (j *job) recycleJob(ctx context.Context, newInstruction JobInstruction) err
 	j.ctx = ctx
 	j.feedback = make(chan PeerResult)
 	j.lastErr = nil
-	j.instr = newInstruction
+	j.instr = newInstr
 	j.mu.Unlock()
 
 	return nil
@@ -181,19 +181,18 @@ func (j *job) revokePeerChat(p *directory.PeerInfo) {
 
 func (j *job) closeUnusedChats() {
 	for _, pch := range j.chats {
-		activePeer := pch.Peer()
+		connPeer := pch.Peer()
 		needed := false
 	inner:
 		for _, reqPeer := range j.instr.Participants {
-			if activePeer == reqPeer {
+			if connPeer == reqPeer {
 				needed = true
 				break inner
 			}
 		}
 		if !needed {
-			pch.Close()
-			delete(j.chats, activePeer.ID)
-			log.Printf("Remove unused peer chat for %v", activePeer.ID)
+			j.revokePeerChat(connPeer)
+			log.Printf("Remove unused peer chat for %v", connPeer.ID)
 		}
 	}
 }
@@ -216,7 +215,7 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 	// Receive
 	// Each peer delivers its response independently from each other. If one peer blocks,
 	// there is still the result of all other peers after the timeout occurs.
-	handleErrFlags := pbJob.CmdResult_Status(0) | pbJob.CmdResult_ERR_CLASS_NORM
+	handleErrFlags := pbJob.CmdResult_Status(0) | pbJob.CmdResult_ERR_CLASS_NORM | pbJob.CmdResult_ERR_CLASS_COMM
 
 	var accumulatedErrFlags pbJob.CmdResult_Status
 	var errPeers []*directory.PeerInfo

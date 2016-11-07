@@ -42,7 +42,7 @@ func runGateway() {
 			time.Sleep(time.Second * 10)
 			log.Println(">>GW: submit SMC task to worker pool")
 
-			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*8)
+			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*20)
 			res, err := orchestration.Request(jobTimeout, &pbJob.SMCTask{Set: "dummygroup"})
 			log.Printf("END RES:\n%v [Error: %v]", res, err)
 
