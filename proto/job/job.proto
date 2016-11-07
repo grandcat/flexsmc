@@ -88,15 +88,21 @@ enum MetadataKey {
 
 message CmdResult {
     enum Status {
-        // Class: status and recoverable errors
+        // Class: success and info
         SUCCESS      = 0;
         SUCCESS_DONE = 1;
-        UNKNOWN_CMD  = 8;
-        DENIED       = 9;
-        // Class: irreversible errors
-        ABORTED      = 16;
-        // Class: communication errors
-        STREAM_ERR  = 128;
+        // Class: soft errors (32 - 63)
+        ERR_CLASS_NORM  = 32;
+        UNKNOWN_CMD     = 33;
+        DENIED          = 34;
+        // Class: irreversible errors on peer side (64 - 127)
+        ERR_CLASS_FAULT = 64;
+        ABORTED         = 65;
+        // Class: communication errors (128 - 255)
+        ERR_CLASS_COMM  = 128;
+        STREAM_ERR      = 129;
+
+        ALL_ERROR_CLASSES = 224; // 32 + 64 + 128
     }
     Status status    = 1;
     string msg       = 2;
