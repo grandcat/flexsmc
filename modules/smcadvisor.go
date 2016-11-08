@@ -2,9 +2,9 @@ package modules
 
 import (
 	"io"
-	"log"
 	"time"
 
+	"github.com/grandcat/flexsmc/logs"
 	proto "github.com/grandcat/flexsmc/proto"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"github.com/grandcat/flexsmc/smc"
@@ -44,7 +44,7 @@ func (s *SMCAdvisor) SpawnBridge() error {
 	// Blocks until stand-by session from SMC backend is available for Reservation.
 	smcSession, err := s.smcConn.RequestSession(s.context)
 	if err != nil {
-		log.Printf("Reservation of SMC backend failed: %v", err)
+		logs.I.Infof("Reservation of SMC backend failed: %v", err)
 		return err
 	}
 	// once a stand-by SMC instance is available, a C&C channel is established
@@ -52,13 +52,13 @@ func (s *SMCAdvisor) SpawnBridge() error {
 	stream, err := s.GWConn.AwaitSMCRound(s.context)
 	if err != nil {
 		smcSession.TearDown()
-		log.Printf("Could not receive SMC cmds: %v", err)
+		logs.I.Infof("Could not receive SMC cmds: %v", err)
 		return err
 	}
 
 	s.ActiveMods.Add(1)
 	go s.bridgeStreamToSMC(stream, smcSession)
-	log.Printf("Spawned new listener routine for SMC channel to GW")
+	logs.I.Infof("Spawned new listener routine for SMC channel to GW")
 
 	return nil
 }
@@ -76,14 +76,14 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 			break
 		}
 		if err != nil {
-			log.Printf("%v.ListFeatures(_) = _, %v", s.GWConn, err)
+			logs.I.Infof("%v.ListFeatures(_) = _, %v", s.GWConn, err)
 			break
 		}
-		log.Printf(">> [%v] SMC Cmd: %v", time.Now(), in)
+		logs.VV.Infof("[%v] SMC Cmd: %v", time.Now(), in)
 		// Initialize session on first interaction.
 		if cntCmds == 0 {
 			if err := smcSess.Init(stream.Context(), in.SessionID); err != nil {
-				log.Printf("smcadvisor: could not init: %v", err)
+				logs.I.Infof("smcadvisor: could not init: %v", err)
 				stream.Send(&pbJob.CmdResult{
 					Status: pbJob.CmdResult_ABORTED,
 					Msg:    "invalid session",
@@ -96,7 +96,7 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 		var resp *pbJob.CmdResult
 		resp, moreCmds = smcSess.NextCmd(in)
 		// Send back response
-		log.Printf(">>[%v] Reply to GW now", moreCmds)
+		logs.VV.Infof("[%v] Reply to GW now", moreCmds)
 		stream.Send(resp)
 
 		cntCmds++
@@ -106,5 +106,5 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 	// XXX: reuse stream to save resources, but requires stream management
 	stream.CloseSend()
 
-	log.Printf("Close chat to GW. Suspected more msgs from GW->%v", moreCmds)
+	logs.I.Infof("Close chat to GW. Suspected more msgs from GW->%v", moreCmds)
 }

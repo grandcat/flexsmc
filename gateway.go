@@ -3,11 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
 	"github.com/grandcat/flexsmc/directory"
+	"github.com/grandcat/flexsmc/logs"
 	proto "github.com/grandcat/flexsmc/proto"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	auth "github.com/grandcat/srpc/authentication"
@@ -51,7 +51,7 @@ func (n *Gateway) Ping(ctx context.Context, in *proto.SMCInfo) (*pbJob.CmdResult
 	a, ok := auth.FromAuthContext(ctx)
 	if ok {
 		p := n.reg.GetOrCreate(a.ID)
-		log.Println("Last peer ", a.ID, "IP:", a.Addr, " activity:", p.LastActivity())
+		logs.I.Infoln("Last peer ", a.ID, "IP:", a.Addr, " activity:", p.LastActivity())
 		p.Touch(a.Addr)
 
 		return &pbJob.CmdResult{Status: pbJob.CmdResult_SUCCESS}, nil
@@ -84,7 +84,7 @@ func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error 
 			if err != nil {
 				return err
 			}
-			log.Printf("gw: [%s] chat loop finished.", a.ID)
+			logs.I.Infof("[%s] chat loop finished.", a.ID)
 			// XXX: kill the chat here as we are done. Check if we should keep it and
 			// reuse it in favor of recreating a new channel on peer side.
 			if !keepAlive {
@@ -99,12 +99,12 @@ func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error 
 			act := p.LastActivity().Seconds()
 			if act > directory.MaxActivityGap {
 				// Shutdown instruction channel as the peer is probably offline.
-				return fmt.Errorf("gw: no ping activity for too long")
+				return fmt.Errorf("no ping activity for too long")
 			}
 
 		// Handling remote peer gracefully shutting down stream connection
 		case <-streamCtx.Done():
-			log.Printf("gw: conn to peer %s teared down unexpectedly", a.ID)
+			logs.I.Infof("[%s] conn to peer teared down unexpectedly", a.ID)
 			// Stopping ticker and unsubscribing from chan is done here (-> defer)
 			return nil
 		}
@@ -126,7 +126,7 @@ func chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGat
 			break
 		}
 		// 1. Send instruction to waiting peer
-		log.Printf("GW -> %s: %v", a.ID, cmd)
+		logs.V.Infof("GW -> [%s]: %v", a.ID, cmd)
 		if err := stream.Send(cmd); err != nil {
 			return false, err
 		}
@@ -135,7 +135,7 @@ func chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGat
 		if err != nil {
 			// Inform GW about loss of connection
 			toGW <- &pbJob.CmdResult{Status: pbJob.CmdResult_STREAM_ERR}
-			log.Printf("[%s] stream rcv aborted.", a.ID)
+			logs.I.Infof("[%s] stream rcv aborted.", a.ID)
 			return false, err
 		}
 		ch.SetPeerMetadata(resp)
@@ -148,7 +148,7 @@ func chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGat
 // GW operation
 
 func (g *Gateway) Run() {
-	log.Println("Starting GW operation...")
+	logs.Infof("Starting GW operation")
 
 	mPairing := pairing.NewServerApproval(g.GetPeerCerts(), gtypeAny.Any{"flexsmc/peerinfo", []byte(g.opts.NodeInfo)})
 	g.RegisterModules(mPairing)
@@ -162,12 +162,12 @@ func (g *Gateway) Run() {
 	proto.RegisterGatewayServer(grpc, g)
 	// XXX: Control pairing
 	go func() {
-		log.Println("GW: waiting for pairings")
+		logs.Infoln("Waiting for pairings")
 		registered := mPairing.IncomingRequests()
 		for {
 			select {
 			case pID := <-registered:
-				log.Println("Incoming registration from:", pID.Fingerprint(), "with details:", pID.Details())
+				logs.Infoln("Incoming registration from:", pID.Fingerprint(), "with details:", pID.Details())
 				time.Sleep(time.Second * 2) //< Simulate an out-of-band verification. Takes some time...
 				pID.Accept()
 			}

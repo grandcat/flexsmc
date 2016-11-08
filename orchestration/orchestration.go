@@ -1,9 +1,8 @@
 package orchestration
 
 import (
-	"log"
-
 	"github.com/grandcat/flexsmc/directory"
+	"github.com/grandcat/flexsmc/logs"
 	"github.com/grandcat/flexsmc/orchestration/aggregation"
 	"github.com/grandcat/flexsmc/orchestration/pipeline"
 	"github.com/grandcat/flexsmc/orchestration/worker"
@@ -43,15 +42,15 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 	// 1. Transform task to set of instructions (should not block)
 	jobInstr, err := fo.prePipe.Process(task)
 	if err != nil {
-		log.Printf("Orchestration: preprocess pipeline failed: %v", err.Error())
+		logs.I.Infof("Orchestration: preprocess pipeline failed: %v", err.Error())
 		return nil, err
 	}
 	// 2. Submit job to worker pool
-	log.Println(">> Pipeline peers:", jobInstr.Participants)
-	log.Println(">> Pipeline phases:", jobInstr.Tasks)
+	logs.VV.Infoln("Pipeline peers:", jobInstr.Participants)
+	logs.VV.Infoln("Pipeline phases:", jobInstr.Tasks)
 	job, err := fo.worker.SubmitJob(ctx, *jobInstr, worker.HandleErrFlags(pbJob.CmdResult_ERR_CLASS_NORM|pbJob.CmdResult_ERR_CLASS_COMM))
 	if err != nil {
-		log.Printf("Orchestration: job submission failed: %v", err.Error())
+		logs.I.Infof("Orchestration: job submission failed: %v", err.Error())
 		return nil, err
 	}
 	// 3. Wait for ingress, aggregate data and do reasoning
@@ -59,7 +58,7 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 
 	// XXX: 4. Try rescheduling job, but excluding the errorneous peers for now
 	if err != nil {
-		log.Printf("PREV RESULT BEFORE RESUBMIT: %v [Error: %v]", res, err)
+		logs.V.Infof("PREV RESULT BEFORE RESUBMIT: %v [Error: %v]", res, err)
 		// Let's assume a peer dropped its connection. So just rerun the job pipeline
 		// should suffice in most cases. Let's try :)
 		newJobInstr, _ := fo.prePipe.Process(task)
@@ -67,11 +66,11 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 		// we can continue. Otherwise, something else causes a problem. Then, it is not
 		// useful resubmitting the job as it will fail again immediately.
 		if len(newJobInstr.Participants) < len(jobInstr.Participants) {
-			log.Printf("Job seems to differ, so start resubmit")
-			log.Printf("New parties: %v", newJobInstr.Participants)
+			logs.I.Infof("Job seems to differ, so start resubmit")
+			logs.V.Infof("New parties: %v", newJobInstr.Participants)
 			err = fo.worker.RescheduleOpenJob(ctx, job, *newJobInstr, worker.HandleErrFlags(0))
 			if err != nil {
-				log.Printf("Orchestration: job resubmit failed: %v", err.Error())
+				logs.I.Infof("Orchestration: job resubmit failed: %v", err.Error())
 				return nil, err
 			}
 			res, err = fo.postAggr.Process(ctx, job)
@@ -83,7 +82,7 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 
 		} else {
 			aerr := job.Abort()
-			log.Printf(">> Orchestration !!Abort: %v", aerr)
+			logs.VV.Infof("Orchestration !!Abort: %v", aerr)
 		}
 	}
 	return res, err

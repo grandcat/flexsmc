@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"time"
 
 	"github.com/grandcat/flexsmc/directory"
+	"github.com/grandcat/flexsmc/logs"
 	"github.com/grandcat/flexsmc/orchestration"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"github.com/grandcat/flexsmc/smc"
@@ -40,11 +40,11 @@ func runGateway() {
 	go func() {
 		for {
 			time.Sleep(time.Second * 10)
-			log.Println(">>GW: submit SMC task to worker pool")
+			logs.I.Infoln("Submit SMC task to worker pool")
 
 			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*20)
 			res, err := orchestration.Request(jobTimeout, &pbJob.SMCTask{Set: "dummygroup"})
-			log.Printf("END RES:\n%v [Error: %v]", res, err)
+			logs.I.Infof("END RES:\n>>>>>>>>> %v [Error: %v] <<<<<<<<<<<", res, err)
 
 			// XXX: prevent memory leak, so release resources when done.
 			cancel()
@@ -75,6 +75,7 @@ func runPeer() {
 
 func main() {
 	flag.Parse()
+	logs.Init()
 
 	if *isGateway {
 		// Gateway role

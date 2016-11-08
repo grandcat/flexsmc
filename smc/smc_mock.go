@@ -2,9 +2,9 @@ package smc
 
 import (
 	"errors"
-	"log"
 	"time"
 
+	"github.com/grandcat/flexsmc/logs"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"golang.org/x/net/context"
 )
@@ -89,14 +89,14 @@ func (s *smcSessionMock) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more b
 	switch cmd := in.Payload.(type) {
 	case *pbJob.SMCCmd_Prepare:
 		if s.allowPhaseTransition(pbJob.SMCCmd_PREPARE) {
-			log.Println(">> Participants:", cmd.Prepare.Participants)
+			logs.VV.Infoln("Participants:", cmd.Prepare.Participants)
 			out = s.doPrepare(cmd.Prepare)
 			more = true
 		}
 
 	case *pbJob.SMCCmd_Session:
 		if s.allowPhaseTransition(pbJob.SMCCmd_SESSION) {
-			log.Println(">> Session phase:", cmd.Session)
+			logs.VV.Infoln("Session phase:", cmd.Session)
 			out = s.doSession(cmd.Session)
 			more = false
 		}

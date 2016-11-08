@@ -2,9 +2,9 @@ package directory
 
 import (
 	"errors"
-	"log"
 	"sync"
 
+	"github.com/grandcat/flexsmc/logs"
 	auth "github.com/grandcat/srpc/authentication"
 )
 
@@ -32,7 +32,7 @@ func (d *Registry) Add(p *PeerInfo) {
 
 	if _, ok := d.peers[p.ID]; ok {
 		// A peer with this ID is already registered
-		log.Printf("Peer %s already exists.", p.ID)
+		logs.Warningf("Peer %s already exists.", p.ID)
 		return
 	}
 

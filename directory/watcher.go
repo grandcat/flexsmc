@@ -1,9 +1,9 @@
 package directory
 
 import (
-	"log"
 	"sync"
 
+	"github.com/grandcat/flexsmc/logs"
 	auth "github.com/grandcat/srpc/authentication"
 )
 
@@ -36,7 +36,7 @@ func newPeerWatcher() *peerWatcher {
 }
 
 func (w *peerWatcher) watch() {
-	log.Println("Starting peerWatcher")
+	logs.I.Infoln("Starting peerWatcher")
 
 	for n := range w.notifies {
 		// Update our view on available nodes
@@ -49,7 +49,7 @@ func (w *peerWatcher) watch() {
 			w.addOrInc(n.p)
 		}
 		// List peers currently available
-		log.Println("Online peers:", w.peersOn)
+		logs.I.Infoln("Online peers:", w.peersOn)
 	}
 }
 
@@ -60,11 +60,11 @@ func (w *peerWatcher) addOrInc(peer *PeerInfo) {
 	if s, ok := w.peersOn[peer.ID]; ok {
 		s.aliveConns++
 		w.peersOn[peer.ID] = s
-		log.Printf("[%s] %d active conns", peer.ID, s.aliveConns)
+		logs.V.Infof("[%s] %d active conns", peer.ID, s.aliveConns)
 
 	} else {
 		w.peersOn[peer.ID] = peerStatus{peer: peer, aliveConns: 1}
-		log.Printf("[%s] Online", peer.ID)
+		logs.V.Infof("[%s] Online", peer.ID)
 	}
 }
 
@@ -75,12 +75,12 @@ func (w *peerWatcher) delOrDec(peer *PeerInfo) {
 	if s, ok := w.peersOn[peer.ID]; ok {
 		if s.aliveConns == 1 {
 			delete(w.peersOn, peer.ID)
-			log.Printf("[%s] Offline or unreachable", peer.ID)
+			logs.V.Infof("[%s] Offline or unreachable", peer.ID)
 
 		} else {
 			s.aliveConns--
 			w.peersOn[peer.ID] = s
-			log.Printf("[%s] %d active conns", peer.ID, s.aliveConns)
+			logs.V.Infof("[%s] %d active conns", peer.ID, s.aliveConns)
 		}
 	}
 }

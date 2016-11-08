@@ -3,10 +3,10 @@ package worker
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/grandcat/flexsmc/directory"
+	"github.com/grandcat/flexsmc/logs"
 )
 
 type PeerNetwork struct {
@@ -23,7 +23,7 @@ func NewPeerNetwork(r *directory.Registry) *PeerNetwork {
 	go pc.jobWorker()
 	go pc.jobWorker()
 
-	log.Println("Starting workers for managing peer connections")
+	logs.I.Infoln("Starting workers for managing peer connections")
 
 	return pc
 }

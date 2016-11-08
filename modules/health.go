@@ -1,9 +1,9 @@
 package modules
 
 import (
-	"log"
 	"time"
 
+	"github.com/grandcat/flexsmc/logs"
 	proto "github.com/grandcat/flexsmc/proto"
 )
 
@@ -42,7 +42,7 @@ func (h *HealthReporter) reportloop() {
 
 		case <-h.context.Done():
 			// Abort by context
-			log.Printf("Health reporter aborted: %v", h.context.Err())
+			logs.I.Infof("Health reporter aborted: %v", h.context.Err())
 			return
 		}
 	}
@@ -51,9 +51,9 @@ func (h *HealthReporter) reportloop() {
 func (h *HealthReporter) Ping() error {
 	resp, err := h.GWConn.Ping(h.context, &proto.SMCInfo{12345})
 	if err != nil {
-		log.Printf("Could not ping GW: %v", err)
+		logs.I.Infof("Could not ping GW: %v", err)
 		return err
 	}
-	log.Println("Ping resp:", resp.Status)
+	logs.V.Infoln("Ping resp:", resp.Status)
 	return nil
 }

@@ -3,10 +3,10 @@ package worker
 import (
 	"context"
 	"errors"
-	"log"
 	"sync"
 
 	"github.com/grandcat/flexsmc/directory"
+	"github.com/grandcat/flexsmc/logs"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	auth "github.com/grandcat/srpc/authentication"
 )
@@ -144,7 +144,7 @@ func (j *job) Abort() error {
 	j.lastErr = nil
 	j.mu.Unlock()
 
-	log.Printf("Job aborted successfully.")
+	logs.I.Infof("Job aborted successfully.")
 	return nil
 }
 
@@ -193,7 +193,7 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 			// TODO: think about parallelizing this as well.
 			// E.g. use channel to receive successful talk requests.
 			errPeers = append(errPeers, p)
-			log.Printf("[%s] Talk request not handled fast enough. Aborting.", p.ID)
+			logs.I.Infof("[%s] Talk request not handled fast enough. Aborting.", p.ID)
 			continue
 		}
 		j.chats[p.ID] = pch
@@ -242,7 +242,7 @@ func (j *job) closeUnusedChats() {
 		}
 		if !needed {
 			j.revokePeerChat(connPeer)
-			log.Printf("Remove unused peer chat for %v", connPeer.ID)
+			logs.I.Infof("Remove unused peer chat for %v", connPeer.ID)
 		}
 	}
 }
@@ -281,7 +281,7 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 		if (errFlag & pbJob.CmdResult_ALL_ERROR_CLASSES) > 0 {
 			accumulatedErrFlags |= errFlag
 			errPeers = append(errPeers, pch.Peer())
-			log.Printf("[%s] peer job failed: %v, Reason: %s",
+			logs.I.Infof("[%s] peer job failed: %v, Reason: %s",
 				pch.Peer().ID, commErr, resp.Status.String())
 
 			// Special case: communication errors
@@ -289,13 +289,13 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 			// and might cause problems in future when a job is reassigned.
 			if (errFlag & pbJob.CmdResult_ERR_CLASS_COMM) > 0 {
 				j.revokePeerChat(pch.Peer())
-				log.Printf("[%s] kicking peer. Comm chan died.", pch.Peer().ID)
+				logs.I.Infof("[%s] kicking peer. Comm chan died.", pch.Peer().ID)
 			}
 			continue
 		}
 
 		resps = append(resps, resp)
-		log.Printf(">>[%s] Response from peer: %v", pch.Peer().ID, resp)
+		logs.VV.Infof("[%s] Response from peer: %v", pch.Peer().ID, resp)
 	}
 
 	var err *PeerError
@@ -366,6 +366,6 @@ func (j *job) haltOrAbort(e *PeerError) {
 
 	if e.Status == Aborted {
 		j.closeAllChats()
-		log.Printf("Job aborted. Closing all comm channels.")
+		logs.I.Infof("Job aborted. Closing all comm channels.")
 	}
 }

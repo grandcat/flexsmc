@@ -2,13 +2,13 @@ package smc
 
 import (
 	"errors"
-	"log"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
 	"fmt"
 
+	"github.com/grandcat/flexsmc/logs"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	proto "github.com/grandcat/flexsmc/proto/smc"
 	"golang.org/x/net/context"
@@ -138,7 +138,7 @@ func (s *frescoSession) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more bo
 		more = false
 		s.state = requestTearDown
 	}
-	log.Printf("SMC_Fresco: more->%v, res->%v, msg->%s", more, out.Status, out.Msg)
+	logs.I.Infof("SMC_Fresco: more->%v, res->%v, msg->%s", more, out.Status, out.Msg)
 	return
 }
 
@@ -148,7 +148,7 @@ func (s *frescoSession) TearDown() {
 		s.condFreeResources()
 
 	} else {
-		log.Printf("SMC_FRESCO: no tear-down, already invoked.")
+		logs.I.Infof("SMC_FRESCO: no tear-down, already invoked.")
 	}
 }
 
@@ -157,7 +157,7 @@ func (s *frescoSession) condFreeResources() {
 		// TODO: find better solution
 		if s.client != nil && s.id != "" {
 			s.client.TearDown(context.Background(), &proto.SessionCtx{SessionID: s.id})
-			log.Printf("[%s] Teared-down SMC backend successfully", s.id)
+			logs.I.Infof("[%s] Teared-down SMC backend successfully", s.id)
 		}
 		s.conn.Close()
 		// Invalidate session and release worker resource.
