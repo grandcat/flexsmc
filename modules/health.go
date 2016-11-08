@@ -42,7 +42,7 @@ func (h *HealthReporter) reportloop() {
 
 		case <-h.context.Done():
 			// Abort by context
-			glog.V(1).Infof("Health reporter aborted: %v", h.context.Err())
+			glog.Warningf("Health reporter aborted: %v", h.context.Err())
 			return
 		}
 	}
@@ -54,6 +54,6 @@ func (h *HealthReporter) Ping() error {
 		glog.V(1).Infof("Could not ping GW: %v", err)
 		return err
 	}
-	glog.V(2).Infoln("Ping resp:", resp.Status)
+	glog.V(3).Infoln("Ping resp:", resp.Status)
 	return nil
 }

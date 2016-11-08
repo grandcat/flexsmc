@@ -98,6 +98,8 @@ func (s *frescoSession) Init(ctx context.Context, id string) error {
 	s.id = id
 	s.state = running
 
+	glog.V(2).Infof("[%s] New session initiated", id)
+
 	return nil
 }
 
@@ -114,6 +116,7 @@ func (s *frescoSession) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more bo
 		s.state = requestTearDown
 		return
 	}
+	glog.V(3).Infof("In:  session->%v, ID->%d", in.SessionID, in.SmcPeerID)
 
 	// Forward command to Fresco and evaluate result to manage active chat.
 	out, err := s.client.NextCmd(s.ctx, in)
@@ -138,7 +141,7 @@ func (s *frescoSession) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more bo
 		more = false
 		s.state = requestTearDown
 	}
-	glog.V(1).Infof("SMC_Fresco: more->%v, res->%v, msg->%s", more, out.Status, out.Msg)
+	glog.V(3).Infof("Out: more->%v, res->%v, msg->%s", more, out.Status, out.Msg)
 	return
 }
 

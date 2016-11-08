@@ -51,7 +51,7 @@ func (n *Gateway) Ping(ctx context.Context, in *proto.SMCInfo) (*pbJob.CmdResult
 	a, ok := auth.FromAuthContext(ctx)
 	if ok {
 		p := n.reg.GetOrCreate(a.ID)
-		glog.V(1).Infoln("Last peer ", a.ID, "IP:", a.Addr, " activity:", p.LastActivity())
+		glog.V(2).Infoln("Last peer ", a.ID, "IP:", a.Addr, " activity:", p.LastActivity())
 		p.Touch(a.Addr)
 
 		return &pbJob.CmdResult{Status: pbJob.CmdResult_SUCCESS}, nil
@@ -84,7 +84,7 @@ func (n *Gateway) AwaitSMCRound(stream proto.Gateway_AwaitSMCRoundServer) error 
 			if err != nil {
 				return err
 			}
-			glog.V(1).Infof("[%s] chat loop finished.", a.ID)
+			glog.V(2).Infof("[%s] chat loop finished.", a.ID)
 			// XXX: kill the chat here as we are done. Check if we should keep it and
 			// reuse it in favor of recreating a new channel on peer side.
 			if !keepAlive {

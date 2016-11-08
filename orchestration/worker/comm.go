@@ -63,9 +63,9 @@ func (pc *PeerNetwork) RescheduleOpenJob(ctx context.Context, haltedJob JobWatch
 
 func (pc *PeerNetwork) jobWorker() {
 	for t := range pc.jobs {
-		fmt.Println("Task starts:", t)
+		glog.V(1).Infoln("Task starts:", t)
 		processJob(t)
-		fmt.Println("Task ends:", t)
+		glog.V(1).Infoln("Task ends:", t)
 	}
 }
 

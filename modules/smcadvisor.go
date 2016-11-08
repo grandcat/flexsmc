@@ -79,11 +79,11 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 			glog.V(1).Infof("%v.ListFeatures(_) = _, %v", s.GWConn, err)
 			break
 		}
-		glog.V(3).Infof("[%v] SMC Cmd: %v", time.Now(), in)
+		glog.V(3).Infof("->Rcv: %v", in)
 		// Initialize session on first interaction.
 		if cntCmds == 0 {
 			if err := smcSess.Init(stream.Context(), in.SessionID); err != nil {
-				glog.V(1).Infof("smcadvisor: could not init: %v", err)
+				glog.V(1).Infof("could not init: %v", err)
 				stream.Send(&pbJob.CmdResult{
 					Status: pbJob.CmdResult_ABORTED,
 					Msg:    "invalid session",
@@ -96,7 +96,7 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 		var resp *pbJob.CmdResult
 		resp, moreCmds = smcSess.NextCmd(in)
 		// Send back response
-		glog.V(3).Infof("[%v] Reply to GW now", moreCmds)
+		glog.V(3).Infof("Send->: suspect more? %v", moreCmds)
 		stream.Send(resp)
 
 		cntCmds++
@@ -106,5 +106,5 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 	// XXX: reuse stream to save resources, but requires stream management
 	stream.CloseSend()
 
-	glog.V(1).Infof("Close chat to GW. Suspected more msgs from GW->%v", moreCmds)
+	glog.V(2).Infof("Close chat to GW. Suspected more msgs from GW->%v", moreCmds)
 }

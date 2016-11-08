@@ -67,7 +67,7 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 		// useful resubmitting the job as it will fail again immediately.
 		if len(newJobInstr.Participants) < len(jobInstr.Participants) {
 			glog.V(1).Infof("Job seems to differ, so start resubmit")
-			glog.V(2).Infof("New parties: %v", newJobInstr.Participants)
+			glog.V(3).Infof("New parties: %v", newJobInstr.Participants)
 			err = fo.worker.RescheduleOpenJob(ctx, job, *newJobInstr, worker.HandleErrFlags(0))
 			if err != nil {
 				glog.V(1).Infof("Orchestration: job resubmit failed: %v", err.Error())
@@ -82,7 +82,7 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 
 		} else {
 			aerr := job.Abort()
-			glog.V(3).Infof("Orchestration !!Abort: %v", aerr)
+			glog.V(2).Infof("Resubmit aborted (no change in topology,task): %v", aerr)
 		}
 	}
 	return res, err
