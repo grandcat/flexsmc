@@ -260,7 +260,7 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 	// First, disseminate the job to all peers.
 	// Then, collect all results, but expect the results to be there until timeout occurs.
 	for _, pch := range j.chats {
-		pch.InstructSafe(cmd)
+		pch.Instruct(cmd)
 	}
 	// Receive
 	// Each peer delivers its response independently from each other. If one peer blocks,

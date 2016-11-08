@@ -8,8 +8,8 @@ type ChannelID int32
 
 type ChatWithPeer interface {
 	Peer() *PeerInfo
-	Instruct() chan<- *pbJob.SMCCmd
-	InstructSafe(cmd *pbJob.SMCCmd)
+	Instruct(cmd *pbJob.SMCCmd)
+	InstructRaw() chan<- *pbJob.SMCCmd
 	GetFeedback() <-chan *pbJob.CmdResult
 	UpdateMetadata(cid ChannelID)
 	Close()
@@ -18,7 +18,8 @@ type ChatWithPeer interface {
 type ChatWithGateway interface {
 	GetInstructions() <-chan *pbJob.SMCCmd
 	Feedback() chan<- *pbJob.CmdResult
-	// Metadata handling
+	// Metadata support functions. Enrich a CmdResult with sensitive data about
+	// the peer holding this chat.
 	SetPeerMetadata(r *pbJob.CmdResult)
 	SetMetadata(r *pbJob.CmdResult, key, value string)
 }
@@ -57,11 +58,11 @@ func (t smcChat) Peer() *PeerInfo {
 	return t.peer
 }
 
-func (t smcChat) Instruct() chan<- *pbJob.SMCCmd {
+func (t smcChat) InstructRaw() chan<- *pbJob.SMCCmd {
 	return t.to
 }
 
-func (t smcChat) InstructSafe(cmd *pbJob.SMCCmd) {
+func (t smcChat) Instruct(cmd *pbJob.SMCCmd) {
 	// TODO: add context to abort
 	newCmd := &pbJob.SMCCmd{}
 	// Copy top level only (NO deep copy! I want it like that ;)
