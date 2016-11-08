@@ -94,7 +94,7 @@ func (j *job) recycleJob(ctx context.Context, newInstr JobInstruction, opts []Jo
 	// Jobs still compatible?
 	// XXX: do more in-depth incompatibility check
 	if !j.isJobHalted() {
-		return &JobError{err: ErrNotHalted, status: j.lastErr.Status}
+		return &JobError{err: ErrNotHalted, status: j.lastErr.status}
 	}
 	if len(newInstr.Tasks) < len(j.instr.Tasks) {
 		return ErrIncompatibleTasks
@@ -159,7 +159,7 @@ func (j *job) isJobHalted() bool {
 	defer j.mu.Unlock()
 	// Job is still running or finished if no error exists.
 	if j.lastErr != nil {
-		return j.lastErr.Status == Halted
+		return j.lastErr.status == Halted
 	}
 	return false
 }
@@ -207,7 +207,7 @@ func (j *job) openPeerChats(ctx context.Context) *PeerError {
 			status = Aborted
 		}
 
-		return NewPeerErr(ctx.Err(), status, j.progress, errPeers)
+		return newPeerErr(ctx.Err(), status, j.progress, errPeers)
 	}
 	return nil
 }
@@ -316,7 +316,7 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 		status = Aborted
 		fallthrough
 	case len(errPeers) > 0:
-		err = NewPeerErr(ErrCtxOrStreamFailure, status, j.progress, errPeers)
+		err = newPeerErr(ErrCtxOrStreamFailure, status, j.progress, errPeers)
 	}
 
 	return resps, err
@@ -372,7 +372,7 @@ func (j *job) haltOrAbort(e *PeerError) {
 	// Notify client (job originator) about error
 	close(j.feedback)
 
-	if e.Status == Aborted {
+	if e.status == Aborted {
 		j.closeAllChats()
 		glog.V(1).Infof("Job aborted. Closing all comm channels.")
 	}

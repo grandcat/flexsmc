@@ -2,6 +2,7 @@ package worker
 
 import "github.com/grandcat/flexsmc/directory"
 import "fmt"
+import "bytes"
 
 // JobImplication describes the state a job is left.
 //go:generate stringer -type=JobImplication
@@ -14,38 +15,6 @@ const (
 	Aborted
 )
 
-type PeerError struct {
-	Status   JobImplication
-	Progress JobPhase
-	Peers    []*directory.PeerInfo
-	Err      error
-}
-
-func NewPeerErr(e error, status JobImplication, progress JobPhase, peers []*directory.PeerInfo) *PeerError {
-	return &PeerError{
-		Err:      e,
-		Status:   status,
-		Progress: progress,
-		Peers:    peers,
-	}
-}
-
-func (e *PeerError) Error() string {
-	msg := e.Err.Error() + " ["
-	for i, p := range e.Peers {
-		msg += string(p.ID)
-		if i != (len(e.Peers) - 1) {
-			msg += " "
-		}
-	}
-	msg += "] "
-	return msg + "? -> " + e.Status.String()
-}
-
-func (e *PeerError) AffectedPeers() []*directory.PeerInfo {
-	return e.Peers
-}
-
 type JobError struct {
 	status JobImplication
 	err    error
@@ -57,4 +26,44 @@ func (e *JobError) Error() string {
 
 func (e *JobError) Status() JobImplication {
 	return e.status
+}
+
+type PeerError struct {
+	JobError
+	progress JobPhase
+	peers    []*directory.PeerInfo
+}
+
+func newPeerErr(e error, status JobImplication, progress JobPhase, peers []*directory.PeerInfo) *PeerError {
+	return &PeerError{
+		progress: progress,
+		peers:    peers,
+		JobError: JobError{
+			err:    e,
+			status: status,
+		},
+	}
+}
+
+func (e *PeerError) Error() string {
+	var msg bytes.Buffer
+	msg.WriteString(e.err.Error())
+	msg.WriteString(" [")
+
+	for i, p := range e.peers {
+		msg.WriteString(string(p.ID))
+		if i != (len(e.peers) - 1) {
+			msg.WriteByte(' ')
+		}
+	}
+	msg.WriteString("]")
+	return msg.String()
+}
+
+func (e *PeerError) Progress() JobPhase {
+	return e.progress
+}
+
+func (e *PeerError) AffectedPeers() []*directory.PeerInfo {
+	return e.peers
 }
