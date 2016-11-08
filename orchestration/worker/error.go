@@ -1,6 +1,7 @@
 package worker
 
 import "github.com/grandcat/flexsmc/directory"
+import "fmt"
 
 // JobImplication describes the state a job is left.
 //go:generate stringer -type=JobImplication
@@ -43,4 +44,17 @@ func (e *PeerError) Error() string {
 
 func (e *PeerError) AffectedPeers() []*directory.PeerInfo {
 	return e.Peers
+}
+
+type JobError struct {
+	status JobImplication
+	err    error
+}
+
+func (e *JobError) Error() string {
+	return fmt.Sprintf("%s: s->%s", e.err.Error(), e.status.String())
+}
+
+func (e *JobError) Status() JobImplication {
+	return e.status
 }
