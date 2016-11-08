@@ -3,7 +3,7 @@ package aggregation
 import (
 	"errors"
 
-	"github.com/grandcat/flexsmc/logs"
+	"github.com/golang/glog"
 	"github.com/grandcat/flexsmc/orchestration/worker"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"golang.org/x/net/context"
@@ -26,7 +26,7 @@ loop:
 		case res, ok := <-in.Result():
 			if !ok {
 				err := in.Err()
-				logs.VV.Infoln("End of stream with error:", err)
+				glog.V(3).Infoln("End of stream with error:", err)
 				if err != nil {
 					// XXX: return anonymous result only (without details about peers)?
 					return nil, err
@@ -48,7 +48,7 @@ loop:
 				lastProgress = res.Progress
 			}
 
-			logs.VV.Infof("Received %v", res.Response)
+			glog.V(3).Infof("Received %v", res.Response)
 			msgBuf[int(res.Progress)] = append(msgBuf[int(res.Progress)], res.Response)
 
 		case <-ctx.Done():
@@ -79,7 +79,7 @@ func analyzeResultConsistency(msgs []*pbJob.CmdResult) error {
 		return nil
 	}
 
-	logs.VV.Infoln("First entry:", msgs[0].Result)
+	glog.V(3).Infoln("First entry:", msgs[0].Result)
 
 	// nil test
 	if msgs[0].Result == nil {

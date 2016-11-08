@@ -33,5 +33,8 @@ type Session interface {
 	Err() error
 }
 
-// var DefaultSMCConnector = newSMCConnectorMock()
+// DefaultSMCConnector set to a fake connector. For debugging.
+// var DefaultSMCConnector = newSMCConnectorMock
+
+// DefaultSMCConnector set to Fresco connector. Requires flexsmc-fresco to be up.
 var DefaultSMCConnector = newFrescoConnector

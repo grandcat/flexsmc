@@ -5,8 +5,8 @@ import (
 	"flag"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/grandcat/flexsmc/directory"
-	"github.com/grandcat/flexsmc/logs"
 	"github.com/grandcat/flexsmc/orchestration"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"github.com/grandcat/flexsmc/smc"
@@ -40,11 +40,11 @@ func runGateway() {
 	go func() {
 		for {
 			time.Sleep(time.Second * 10)
-			logs.I.Infoln("Submit SMC task to worker pool")
+			glog.V(1).Infoln("Submit SMC task to worker pool")
 
 			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*20)
 			res, err := orchestration.Request(jobTimeout, &pbJob.SMCTask{Set: "dummygroup"})
-			logs.I.Infof("END RES:\n>>>>>>>>> %v [Error: %v] <<<<<<<<<<<", res, err)
+			glog.V(1).Infof("END RES:\n>>>>>>>>> %v [Error: %v] <<<<<<<<<<<", res, err)
 
 			// XXX: prevent memory leak, so release resources when done.
 			cancel()
@@ -75,7 +75,6 @@ func runPeer() {
 
 func main() {
 	flag.Parse()
-	logs.Init()
 
 	if *isGateway {
 		// Gateway role

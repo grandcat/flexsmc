@@ -4,8 +4,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/golang/glog"
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
-	"github.com/grandcat/flexsmc/logs"
 	"github.com/grandcat/flexsmc/modules"
 	proto "github.com/grandcat/flexsmc/proto"
 	"github.com/grandcat/flexsmc/smc"
@@ -57,13 +57,13 @@ func NewPeer(opts PeerOptions) *Peer {
 
 func (p *Peer) Init() {
 	if err := p.srpc.GetPeerCerts().LoadFromPath("peer1/"); err != nil {
-		logs.Errorln(err)
+		glog.Errorln(err)
 	}
 }
 
 func (p *Peer) Operate() {
 	for {
-		logs.I.Infof("Entering %+v", p.state)
+		glog.V(1).Infof("Entering %+v", p.state)
 		switch p.state {
 		case Discovery:
 			// XXX: no discovery yet. Just go to next state
@@ -105,36 +105,36 @@ func (p *Peer) startPairing() (next RunState) {
 	const peerID = "gw4242.flexsmc.local"
 	// 2. Initiate pairing if it is an unknown identity (if desired)
 	// knownGW := p.srpc.GetPeerCerts().ActivePeerCertificates(peerID)
-	logs.VV.Infoln("Pairing active?", p.opts.UsePairing)
+	glog.V(3).Infoln("Pairing active?", p.opts.UsePairing)
 	if p.opts.UsePairing {
-		logs.I.Infoln("Start pairing...")
+		glog.V(1).Infoln("Start pairing...")
 		// XXX: assume we want to pair with this gateway (e.g. matching properties, instructed by admin, ...)
 		ccp, err := p.srpc.DialUnsecure(peerID)
 		if err != nil {
-			logs.Errorf("Could not initiate pairing to GW node %s: %v", peerID, err)
+			glog.Errorf("Could not initiate pairing to GW node %s: %v", peerID, err)
 			return
 		}
-		logs.I.Infoln("DialUnsecured done.")
+		glog.V(1).Infoln("DialUnsecured done.")
 		mPairing := pairing.NewClientApproval(p.srpc.GetPeerCerts(), ccp)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
 
 		gwIdentity, err := mPairing.StartPairing(ctx, &gtypeAny.Any{"flexsmc/peerinfo", []byte(p.opts.NodeInfo)})
 		if err != nil {
-			logs.Errorf("Pairing with %s failed: %v", peerID, err)
+			glog.Errorf("Pairing with %s failed: %v", peerID, err)
 			return
 		}
 		// Pairing commissioning
-		logs.I.Infoln("GWIdentity:", gwIdentity.Fingerprint(), "Info:", gwIdentity.Details())
+		glog.V(1).Infoln("GWIdentity:", gwIdentity.Fingerprint(), "Info:", gwIdentity.Details())
 		// XXX: accept GW without out-of-band verification for now
 		gwIdentity.Accept()
 		p.srpc.GetPeerCerts().StoreToPath("peer1/")
 		// Wait for server to accept our pairing request
 		status := mPairing.AwaitPairingResult(ctx)
 		if r, ok := <-status; ok {
-			logs.I.Infoln("Pairing: peer responded with", r)
+			glog.V(1).Infoln("Pairing: peer responded with", r)
 		} else {
-			logs.I.Infoln("Pairing aborted by peer")
+			glog.V(1).Infoln("Pairing aborted by peer")
 		}
 	}
 
@@ -147,7 +147,7 @@ func (p *Peer) prepare() (next RunState) {
 	// Join the SMC network.
 	cc, err := p.srpc.Dial(peerID)
 	if err != nil {
-		logs.Warningf("Could not resolve or dial GW node %s: %v", peerID, err)
+		glog.Warningf("Could not resolve or dial GW node %s: %v", peerID, err)
 		next = Discovery
 		return
 	}
@@ -157,7 +157,7 @@ func (p *Peer) prepare() (next RunState) {
 }
 
 func (p *Peer) startService() (next RunState) {
-	logs.I.Infoln("Services:")
+	glog.V(1).Infoln("Services:")
 
 	var modCtx context.Context
 	modCtx, p.modCancel = context.WithCancel(context.Background())
@@ -167,12 +167,12 @@ func (p *Peer) startService() (next RunState) {
 	healthMod := modules.NewHealthReporter(p.modInfo, time.Second*10)
 	if err := healthMod.Ping(); err != nil {
 		p.connRetry++
-		logs.I.Infoln("[ ] Health ping")
+		glog.V(1).Infoln("[ ] Health ping")
 		// Watch failed connection attempts, retry or abort if unavailable
 		switch {
 		case 0 < p.connRetry && p.connRetry < RetryConnection:
 			timeout := math.Pow(2, float64(p.connRetry))
-			logs.V.Infof("Retrying in %f seconds...", timeout)
+			glog.V(2).Infof("Retrying in %f seconds...", timeout)
 			time.Sleep(time.Second * time.Duration(timeout))
 			next = Connecting
 
@@ -187,7 +187,7 @@ func (p *Peer) startService() (next RunState) {
 	}
 	p.connRetry = 0
 	healthMod.Start()
-	logs.I.Infoln("[x] Health ping")
+	glog.V(1).Infoln("[x] Health ping")
 
 	time.Sleep(time.Millisecond * 500)
 
@@ -195,7 +195,7 @@ func (p *Peer) startService() (next RunState) {
 	smcAdvisor := modules.NewSMCAdvisor(p.modInfo, p.smcConn)
 	// SpawnListener ends at the moment when finishing a SMC session.
 	// Need to respawn on time.
-	logs.I.Infoln("[x] SMC advisor")
+	glog.V(1).Infoln("[x] SMC advisor")
 	smcAdvisor.Start()
 
 	next = Operating
@@ -204,13 +204,13 @@ func (p *Peer) startService() (next RunState) {
 
 func (p *Peer) watchService() (next RunState) {
 	if modErr, ok := <-p.modInfo.Faults(); ok {
-		logs.Warningf("A module cannot recover from: %v", modErr.Error())
+		glog.Warningf("A module cannot recover from: %v", modErr.Error())
 	}
 	// Cancel all running modules for a fresh connection.
 	p.faults++
 	p.modCancel()
 	p.modInfo.WaitAll()
-	logs.I.Infof("!!! %d faults by modules so far. Restarting all modules with new connection.", p.faults)
+	glog.V(1).Infof("!!! %d faults by modules so far. Restarting all modules with new connection.", p.faults)
 	// p.srpc.TearDown()
 
 	next = Connecting

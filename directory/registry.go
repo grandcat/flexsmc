@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/grandcat/flexsmc/logs"
+	"github.com/golang/glog"
 	auth "github.com/grandcat/srpc/authentication"
 )
 
@@ -32,7 +32,7 @@ func (d *Registry) Add(p *PeerInfo) {
 
 	if _, ok := d.peers[p.ID]; ok {
 		// A peer with this ID is already registered
-		logs.Warningf("Peer %s already exists.", p.ID)
+		glog.Warningf("Peer %s already exists.", p.ID)
 		return
 	}
 

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/grandcat/flexsmc/logs"
+	"github.com/golang/glog"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"golang.org/x/net/context"
 )
@@ -89,14 +89,14 @@ func (s *smcSessionMock) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more b
 	switch cmd := in.Payload.(type) {
 	case *pbJob.SMCCmd_Prepare:
 		if s.allowPhaseTransition(pbJob.SMCCmd_PREPARE) {
-			logs.VV.Infoln("Participants:", cmd.Prepare.Participants)
+			glog.V(3).Infoln("Participants:", cmd.Prepare.Participants)
 			out = s.doPrepare(cmd.Prepare)
 			more = true
 		}
 
 	case *pbJob.SMCCmd_Session:
 		if s.allowPhaseTransition(pbJob.SMCCmd_SESSION) {
-			logs.VV.Infoln("Session phase:", cmd.Session)
+			glog.V(3).Infoln("Session phase:", cmd.Session)
 			out = s.doSession(cmd.Session)
 			more = false
 		}

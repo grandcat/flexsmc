@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/grandcat/flexsmc/directory"
-	"github.com/grandcat/flexsmc/logs"
 )
 
 type PeerNetwork struct {
@@ -23,7 +23,7 @@ func NewPeerNetwork(r *directory.Registry) *PeerNetwork {
 	go pc.jobWorker()
 	go pc.jobWorker()
 
-	logs.I.Infoln("Starting workers for managing peer connections")
+	glog.V(1).Infoln("Starting workers for managing peer connections")
 
 	return pc
 }

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grandcat/flexsmc/logs"
+	"github.com/golang/glog"
 	auth "github.com/grandcat/srpc/authentication"
 )
 
@@ -97,7 +97,7 @@ func (pi *PeerInfo) SubscribeCmdChan() <-chan ChatWithGateway {
 	pi.mu.Lock()
 	defer pi.mu.Unlock()
 	// We assume that the previous chan was closed via UnsubscribeCmdChan().
-	logs.V.Infof("[%s] SubscribeCmdChan ", pi.ID)
+	glog.V(2).Infof("[%s] SubscribeCmdChan ", pi.ID)
 	// Add peer to pool of available peers
 	pi.stateNotifier <- stateChange{avail: 2, p: pi}
 
@@ -114,7 +114,7 @@ func (pi *PeerInfo) UnsubscribeCmdChan() {
 	// Not necessary to close the channel if this signal is unused.
 	// See https://groups.google.com/forum/#!msg/golang-nuts/pZwdYRGxCIk/qpbHxRRPJdUJ .
 	// close(pi.tx) // NOTE: panics if chan is closed already!
-	logs.V.Infof("[%s] UnsubscribeCmdChan", pi.ID)
+	glog.V(2).Infof("[%s] UnsubscribeCmdChan", pi.ID)
 }
 
 // RequestChat provides a chat to communicate with this peer

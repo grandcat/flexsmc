@@ -3,7 +3,7 @@ package directory
 import (
 	"sync"
 
-	"github.com/grandcat/flexsmc/logs"
+	"github.com/golang/glog"
 	auth "github.com/grandcat/srpc/authentication"
 )
 
@@ -36,7 +36,7 @@ func newPeerWatcher() *peerWatcher {
 }
 
 func (w *peerWatcher) watch() {
-	logs.I.Infoln("Starting peerWatcher")
+	glog.V(1).Infoln("Starting peerWatcher")
 
 	for n := range w.notifies {
 		// Update our view on available nodes
@@ -49,7 +49,7 @@ func (w *peerWatcher) watch() {
 			w.addOrInc(n.p)
 		}
 		// List peers currently available
-		logs.I.Infoln("Online peers:", w.peersOn)
+		glog.V(1).Infoln("Online peers:", w.peersOn)
 	}
 }
 
@@ -60,11 +60,11 @@ func (w *peerWatcher) addOrInc(peer *PeerInfo) {
 	if s, ok := w.peersOn[peer.ID]; ok {
 		s.aliveConns++
 		w.peersOn[peer.ID] = s
-		logs.V.Infof("[%s] %d active conns", peer.ID, s.aliveConns)
+		glog.V(4).Infof("[%s] %d active conns", peer.ID, s.aliveConns)
 
 	} else {
 		w.peersOn[peer.ID] = peerStatus{peer: peer, aliveConns: 1}
-		logs.V.Infof("[%s] Online", peer.ID)
+		glog.V(4).Infof("[%s] Online", peer.ID)
 	}
 }
 
@@ -75,12 +75,12 @@ func (w *peerWatcher) delOrDec(peer *PeerInfo) {
 	if s, ok := w.peersOn[peer.ID]; ok {
 		if s.aliveConns == 1 {
 			delete(w.peersOn, peer.ID)
-			logs.V.Infof("[%s] Offline or unreachable", peer.ID)
+			glog.V(4).Infof("[%s] Offline or unreachable", peer.ID)
 
 		} else {
 			s.aliveConns--
 			w.peersOn[peer.ID] = s
-			logs.V.Infof("[%s] %d active conns", peer.ID, s.aliveConns)
+			glog.V(4).Infof("[%s] %d active conns", peer.ID, s.aliveConns)
 		}
 	}
 }
