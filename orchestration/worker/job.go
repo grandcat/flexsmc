@@ -94,7 +94,7 @@ func (j *job) recycleJob(ctx context.Context, newInstr JobInstruction, opts []Jo
 	// Jobs still compatible?
 	// XXX: do more in-depth incompatibility check
 	if !j.isJobHalted() {
-		return ErrNotHalted
+		return &JobError{err: ErrNotHalted, status: j.lastErr.Status}
 	}
 	if len(newInstr.Tasks) < len(j.instr.Tasks) {
 		return ErrIncompatibleTasks
@@ -106,8 +106,8 @@ func (j *job) recycleJob(ctx context.Context, newInstr JobInstruction, opts []Jo
 		if !exists {
 			return ErrNewParticipants
 		}
-		// Set new channelID as it might have changed.
-		pch.UpdateMetadata(cid)
+		// Set new channelID and update our view of the talk object.
+		j.chats[p.ID] = pch.UpdateMetadata(cid)
 	}
 	// All required chats are there, but there can be more than that. Clean up.
 	if true || len(newInstr.Participants) < len(j.chats) {
@@ -226,6 +226,9 @@ func (j *job) revokePeerChat(p *directory.PeerInfo) {
 	if pch, ok := j.chats[p.ID]; ok {
 		pch.Close()
 		delete(j.chats, p.ID)
+
+	} else {
+		glog.Warningf("[%s] No such peer to revoke its chat", p.ID)
 	}
 }
 
@@ -281,8 +284,13 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 		if (errFlag & pbJob.CmdResult_ALL_ERROR_CLASSES) > 0 {
 			accumulatedErrFlags |= errFlag
 			errPeers = append(errPeers, pch.Peer())
+
+			var status string
+			if resp != nil {
+				status = resp.Status.String()
+			}
 			glog.V(1).Infof("[%s] peer job failed: %v, Reason: %s",
-				pch.Peer().ID, commErr, resp.Status.String())
+				pch.Peer().ID, commErr, status)
 
 			// Special case: communication errors
 			// Remove affected peers directly as their communication channel died anyway

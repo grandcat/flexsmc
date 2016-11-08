@@ -11,7 +11,7 @@ type ChatWithPeer interface {
 	Instruct(cmd *pbJob.SMCCmd)
 	InstructRaw() chan<- *pbJob.SMCCmd
 	GetFeedback() <-chan *pbJob.CmdResult
-	UpdateMetadata(cid ChannelID)
+	UpdateMetadata(cid ChannelID) ChatWithPeer
 	Close()
 }
 
@@ -78,8 +78,9 @@ func (t smcChat) GetFeedback() <-chan *pbJob.CmdResult {
 	return t.from
 }
 
-func (t smcChat) UpdateMetadata(cid ChannelID) {
+func (t smcChat) UpdateMetadata(cid ChannelID) ChatWithPeer {
 	t.chanID = cid
+	return t
 }
 
 func (t smcChat) Close() {

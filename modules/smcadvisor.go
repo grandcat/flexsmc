@@ -67,16 +67,19 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 	defer s.ActiveMods.Done()
 	defer smcSess.TearDown()
 
+	glog.V(2).Infoln("GW <--> Me: bridge established")
+
 	moreCmds := true
 	var cntCmds uint
 
 	for moreCmds {
 		in, err := stream.Recv()
 		if err == io.EOF {
+			glog.Warningf("->Rcv: GW EOF")
 			break
 		}
 		if err != nil {
-			glog.V(1).Infof("%v.ListFeatures(_) = _, %v", s.GWConn, err)
+			glog.Warningf("->Rcv: GW error: %v", err)
 			break
 		}
 		glog.V(3).Infof("->Rcv: %v", in)
