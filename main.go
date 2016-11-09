@@ -16,7 +16,7 @@ var (
 	isGateway = flag.Bool("gateway", false, "Set to true to run this node as a gateway")
 	certFile  = flag.String("cert_file", "certs/cert_server.pem", "TLS cert file")
 	keyFile   = flag.String("key_file", "certs/key_server.pem", "TLS key file")
-	enPairing = flag.Bool("enPairing", true, "Enable or disable pairing phase")
+	enPairing = flag.Bool("enPairing", false, "Enable or disable pairing phase")
 	peerInfo  = flag.String("peerinfo", "123", "Additional peer information supplied during pairing")
 
 	smcConnSock = flag.String("smcsocket", "", "Custom SMC socket to pass to SMC connector")
