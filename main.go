@@ -43,7 +43,7 @@ func runGateway() {
 			glog.V(1).Infoln("Submit SMC task to worker pool")
 
 			jobTimeout, cancel := context.WithTimeout(context.Background(), time.Second*20)
-			res, err := orchestration.Request(jobTimeout, &pbJob.SMCTask{Set: "dummygroup"})
+			res, err := orchestration.Request(jobTimeout, &pbJob.SMCTask{Set: "dummygroup", Aggregator: pbJob.Aggregator_SUM})
 			glog.V(1).Infof("END RES:\n>>>>>>>>> %v [Error: %v] <<<<<<<<<<<", res, err)
 
 			// XXX: prevent memory leak, so release resources when done.

@@ -33,7 +33,7 @@ enum Aggregator {
 }
 
 message SMCTask {
-    string Set            = 1;
+    string set            = 1;
     DataOrigin source     = 2;
     // (Pre)Selectors
     Aggregator aggregator = 4;
