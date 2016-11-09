@@ -1,0 +1,16 @@
+session_name: flexsmc-dev
+windows:
+- window_name: dev window
+  layout: main-vertical
+  options:
+    main-pane-width: 90
+  shell_command_before:
+    - cd .
+  panes:
+    - shell_command:
+      - ./flexsmc --gateway -logtostderr=true -v 2
+    - shell_command:
+      - ./flexsmc -cert_file certs/cert_client3.pem -key_file certs/key_client3.pem -smcsocket "unix:///tmp/grpc1.sock" -logtostderr -v 2
+    - shell_command:
+      - ./flexsmc -cert_file certs/cert_client4.pem -key_file certs/key_client4.pem -smcsocket "unix:///tmp/grpc2.sock" -logtostderr -v 3
+    - pwd
