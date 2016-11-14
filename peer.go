@@ -56,7 +56,7 @@ func NewPeer(opts PeerOptions) *Peer {
 }
 
 func (p *Peer) Init() {
-	if err := p.srpc.GetPeerCerts().LoadFromPath("peer1/"); err != nil {
+	if err := p.srpc.PeerCerts().LoadFromPath("peer1/"); err != nil {
 		glog.Errorln(err)
 	}
 }
@@ -90,7 +90,7 @@ func (p *Peer) Operate() {
 
 func (p *Peer) discover() (next RunState) {
 	// If not known, initiate pairing
-	// knownGW := p.srpc.GetPeerCerts().ActivePeerCertificates("gw4242.flexsmc.local")
+	// knownGW := p.srpc.PeerCerts().ActivePeerCertificates("gw4242.flexsmc.local")
 	knownGW := 0
 	if knownGW == 0 {
 		next = Pairing
@@ -104,7 +104,7 @@ func (p *Peer) discover() (next RunState) {
 func (p *Peer) startPairing() (next RunState) {
 	const peerID = "gw4242.flexsmc.local"
 	// 2. Initiate pairing if it is an unknown identity (if desired)
-	// knownGW := p.srpc.GetPeerCerts().ActivePeerCertificates(peerID)
+	// knownGW := p.srpc.PeerCerts().ActivePeerCertificates(peerID)
 	glog.V(3).Infoln("Pairing active?", p.opts.UsePairing)
 	if p.opts.UsePairing {
 		glog.V(1).Infoln("Start pairing...")
@@ -115,7 +115,7 @@ func (p *Peer) startPairing() (next RunState) {
 			return
 		}
 		glog.V(1).Infoln("DialUnsecured done.")
-		mPairing := pairing.NewClientApproval(p.srpc.GetPeerCerts(), ccp)
+		mPairing := pairing.NewClientApproval(p.srpc.PeerCerts(), ccp)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
 
@@ -128,7 +128,7 @@ func (p *Peer) startPairing() (next RunState) {
 		glog.V(1).Infoln("GWIdentity:", gwIdentity.Fingerprint(), "Info:", gwIdentity.Details())
 		// XXX: accept GW without out-of-band verification for now
 		gwIdentity.Accept()
-		p.srpc.GetPeerCerts().StoreToPath("peer1/")
+		p.srpc.PeerCerts().StoreToPath("peer1/")
 		// Wait for server to accept our pairing request
 		status := mPairing.AwaitPairingResult(ctx)
 		if r, ok := <-status; ok {

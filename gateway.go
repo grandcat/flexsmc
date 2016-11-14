@@ -150,7 +150,7 @@ func chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGat
 func (g *Gateway) Run() {
 	glog.Infof("Starting GW operation")
 
-	mPairing := pairing.NewServerApproval(g.GetPeerCerts(), gtypeAny.Any{"flexsmc/peerinfo", []byte(g.opts.NodeInfo)})
+	mPairing := pairing.NewServerApproval(g.PeerCerts(), gtypeAny.Any{"flexsmc/peerinfo", []byte(g.opts.NodeInfo)})
 	g.RegisterModules(mPairing)
 
 	grpc, err := g.Build()
