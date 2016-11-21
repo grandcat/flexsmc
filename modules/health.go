@@ -21,10 +21,10 @@ func NewHealthReporter(modInfo ModuleContext, pingInterval time.Duration) *Healt
 
 func (h *HealthReporter) Start() {
 	h.ActiveMods.Add(1)
-	go h.reportloop()
+	go h.pingloop()
 }
 
-func (h *HealthReporter) reportloop() {
+func (h *HealthReporter) pingloop() {
 	defer h.ActiveMods.Done()
 
 	ticker := time.NewTicker(h.PingInterval)

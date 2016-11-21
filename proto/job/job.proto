@@ -44,6 +44,9 @@ message SMCTask {
 }
 
 // Job phases
+// The concatenation of serveral phases defines the flow and coordination of a job.
+// The sequence and content is built by the job pipeline. The FSM on peer side needs
+// to be adapted for new phases or certain configurations.
 
 message PreparePhase {
     message Participant {

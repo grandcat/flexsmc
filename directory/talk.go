@@ -34,9 +34,9 @@ const chatBufLen = 1
 
 type smcChat struct {
 	peer *PeerInfo
-	// Channel to send some instructions to a certain peer
+	// to is the channel to send some instructions to a certain peer.
 	to chan *pbJob.SMCCmd
-	// Channel to listen for feedback from the same peer
+	// from is the channel to listen for feedback from the same peer.
 	from chan *pbJob.CmdResult
 	// Metadata for the node to incorporate its relative position for
 	// coordination
