@@ -61,6 +61,26 @@ func (con *FrescoConnect) RequestSession(ctx context.Context) (Session, error) {
 	}
 }
 
+func (con *FrescoConnect) ResetAll(ctx context.Context) error {
+	cc, err := DialSocket(con.backendSocket)
+	if err != nil {
+		return err
+	}
+	defer cc.Close()
+	cl := proto.NewSMCClient(cc)
+
+	resp, err := cl.ResetAll(ctx, &proto.FilterArgs{})
+	if err != nil {
+		return err
+	}
+	if (resp.Status & pbJob.CmdResult_ALL_ERROR_CLASSES) > 0 {
+		return fmt.Errorf("could not reset all sessions: %s", resp.Msg)
+	}
+
+	glog.V(3).Infof("ResetAll successful.")
+	return nil
+}
+
 type frescoSession struct {
 	ctx    context.Context
 	conn   *grpc.ClientConn

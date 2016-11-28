@@ -16,6 +16,10 @@ type Connector interface {
 	// RequestSession blocks until resources allow for a new Session.
 	// The context can abort an ongoing request. This will cause an error.
 	RequestSession(ctx context.Context) (Session, error)
+	// ResetAll tears down any active sessions and cleans up.
+	// Call it before requesting the first session if there are possibly any open
+	// sessions due to a previous connection abort, for instance.
+	ResetAll(ctx context.Context) error
 }
 
 type Session interface {

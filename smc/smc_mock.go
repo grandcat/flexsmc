@@ -50,6 +50,13 @@ func (con *smcConnectorMock) RequestSession(ctx context.Context) (Session, error
 	}
 }
 
+func (con *smcConnectorMock) ResetAll(ctx context.Context) error {
+	// Assume that ResetAll is only called before or after requesting
+	// any sessions. So len(con.readyWorkers) == ParallelSessions already.
+	// Nothing to do.
+	return nil
+}
+
 type smcSessionMock struct {
 	ctx context.Context
 	id  string
