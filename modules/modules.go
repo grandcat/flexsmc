@@ -24,6 +24,8 @@ func NewModuleContext(ctx context.Context, gwConn proto.GatewayClient) ModuleCon
 	}
 }
 
+// Report an error to the observer. Be aware to call it within a go routine.
+// This avoids possible dead-locks.
 func (m ModuleContext) reportFault(err error) {
 	select {
 	case m.faults <- err:

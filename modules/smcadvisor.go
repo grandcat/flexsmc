@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -25,6 +26,18 @@ func NewSMCAdvisor(modInfo ModuleContext, smcConnector smc.Connector) *SMCAdviso
 }
 
 func (s *SMCAdvisor) Start() {
+	// Cleanup any old sessions due to a connection abort. Assume this instance is
+	// the only one using the SMC backend.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := s.smcConn.ResetAll(ctx)
+	if err != nil {
+		// As the module observer starts after finishing this method, report this
+		// error asynchroniously. Otherwise, it will dead-lock here.
+		go s.reportFault(err)
+		return
+	}
+	// Start SMC communication workers.
 	go s.BlockingSpawn()
 }
 
