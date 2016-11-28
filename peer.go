@@ -11,6 +11,7 @@ import (
 	"github.com/grandcat/flexsmc/smc"
 	"github.com/grandcat/srpc/client"
 	"github.com/grandcat/srpc/pairing"
+	"github.com/grandcat/zeroconf.sd"
 	"golang.org/x/net/context"
 )
 
@@ -24,6 +25,7 @@ const (
 	Resolving
 	Connecting
 	Operating
+	Restart
 )
 
 type Peer struct {
@@ -31,13 +33,14 @@ type Peer struct {
 	smcConn smc.Connector
 	opts    PeerOptions
 
-	state     RunState
-	connRetry int
-	faults    int
-
 	gclient   proto.GatewayClient
 	modInfo   modules.ModuleContext
 	modCancel context.CancelFunc
+	mdns      *bonjour.Resolver
+
+	state     RunState
+	connRetry int
+	faults    int
 }
 
 func NewPeer(opts PeerOptions) *Peer {
@@ -48,9 +51,15 @@ func NewPeer(opts PeerOptions) *Peer {
 		smcConn = smc.DefaultSMCConnector("")
 	}
 
+	mdns, err := bonjour.NewResolver(nil)
+	if err != nil {
+		glog.Fatal("Fatal mDNS error:", err)
+	}
+
 	return &Peer{
 		srpc:    client.NewClient(srpcOpts...),
 		smcConn: smcConn,
+		mdns:    mdns,
 		opts:    opts,
 	}
 }
@@ -74,7 +83,7 @@ func (p *Peer) Operate() {
 			p.state = p.startPairing()
 
 		case Resolving:
-			p.state = p.prepare()
+			p.state = p.prepareConnection()
 
 		case Connecting:
 			// Start services if connection is available:
@@ -84,14 +93,18 @@ func (p *Peer) Operate() {
 
 		case Operating:
 			p.state = p.watchService()
+
+		case Restart:
+			p.state = p.cleanRestart()
 		}
 	}
 }
 
 func (p *Peer) discover() (next RunState) {
+	const peerID = "gw4242.flexsmc.local"
 	// If not known, initiate pairing
-	// knownGW := p.srpc.PeerCerts().ActivePeerCertificates("gw4242.flexsmc.local")
-	knownGW := 0
+	knownGW := p.srpc.PeerCerts().ActivePeerCertificates("gw4242.flexsmc.local")
+	// knownGW := 0
 	if knownGW == 0 {
 		next = Pairing
 
@@ -103,6 +116,7 @@ func (p *Peer) discover() (next RunState) {
 
 func (p *Peer) startPairing() (next RunState) {
 	const peerID = "gw4242.flexsmc.local"
+	// const peerID = "gw4242.local"
 	// 2. Initiate pairing if it is an unknown identity (if desired)
 	// knownGW := p.srpc.PeerCerts().ActivePeerCertificates(peerID)
 	glog.V(3).Infoln("Pairing active?", p.opts.UsePairing)
@@ -136,14 +150,21 @@ func (p *Peer) startPairing() (next RunState) {
 		} else {
 			glog.V(1).Infoln("Pairing aborted by peer")
 		}
+
+		// XXX: restart for now. sRPC won't release its mDNS resolver otherwise.
+		next = Restart
+
+	} else {
+		// No pairing required. So go to next step.
+		next = Resolving
 	}
 
-	next = Resolving
 	return
 }
 
-func (p *Peer) prepare() (next RunState) {
+func (p *Peer) prepareConnection() (next RunState) {
 	const peerID = "gw4242.flexsmc.local"
+	// const peerID = "gw4242.local"
 	// Join the SMC network.
 	cc, err := p.srpc.Dial(peerID)
 	if err != nil {
@@ -176,12 +197,9 @@ func (p *Peer) startService() (next RunState) {
 			time.Sleep(time.Second * time.Duration(timeout))
 			next = Connecting
 
-		case RetryConnection <= p.connRetry:
-			// Cleanup for new try
-			p.connRetry = 0
-			p.srpc.TearDown()
-
-			next = Discovery
+		case p.connRetry >= RetryConnection:
+			// Cleanup for starting all over again.
+			next = Restart
 		}
 		return
 	}
@@ -217,7 +235,15 @@ func (p *Peer) watchService() (next RunState) {
 	return
 }
 
+func (p *Peer) cleanRestart() (next RunState) {
+	p.connRetry = 0
+	p.srpc.TearDown()
+
+	next = Discovery
+	return
+}
+
 func (p *Peer) Run() {
-	p.Operate()
+	p.Operate() //< blocking
 	p.srpc.TearDown()
 }
