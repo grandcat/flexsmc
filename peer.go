@@ -101,13 +101,11 @@ func (p *Peer) Operate() {
 }
 
 func (p *Peer) discover() (next RunState) {
-	const peerID = "gw4242.flexsmc.local"
 	// If not known, initiate pairing
 	knownGW := p.srpc.PeerCerts().ActivePeerCertificates("gw4242.flexsmc.local")
 	// knownGW := 0
-	if knownGW == 0 {
+	if knownGW == 0 || p.opts.UsePairing {
 		next = Pairing
-
 	} else {
 		next = Resolving
 	}
@@ -119,17 +117,20 @@ func (p *Peer) startPairing() (next RunState) {
 	// const peerID = "gw4242.local"
 	// 2. Initiate pairing if it is an unknown identity (if desired)
 	// knownGW := p.srpc.PeerCerts().ActivePeerCertificates(peerID)
-	glog.V(3).Infoln("Pairing active?", p.opts.UsePairing)
 	if p.opts.UsePairing {
 		glog.V(1).Infoln("Start pairing...")
-		// XXX: assume we want to pair with this gateway (e.g. matching properties, instructed by admin, ...)
-		ccp, err := p.srpc.DialUnsecure(peerID)
+		next = Restart
+		// Pair with this gateway (e.g. matching properties, instructed by admin, ...)
+		cc, err := p.srpc.DialUnsecure(peerID)
 		if err != nil {
 			glog.Errorf("Could not initiate pairing to GW node %s: %v", peerID, err)
 			return
 		}
+		defer cc.TearDown()
+		defer p.srpc.TearDown() //< very hacky. Replace by improved boxing on sRPC side. Needed to release bounded resolver.
+
 		glog.V(1).Infoln("DialUnsecured done.")
-		mPairing := pairing.NewClientApproval(p.srpc.PeerCerts(), ccp)
+		mPairing := pairing.NewClientApproval(p.srpc.PeerCerts(), cc)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
 
@@ -150,15 +151,9 @@ func (p *Peer) startPairing() (next RunState) {
 		} else {
 			glog.V(1).Infoln("Pairing aborted by peer")
 		}
-
-		// XXX: restart for now. sRPC won't release its mDNS resolver otherwise.
-		next = Restart
-
-	} else {
-		// No pairing required. So go to next step.
-		next = Resolving
 	}
 
+	next = Resolving
 	return
 }
 
