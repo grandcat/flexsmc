@@ -10,6 +10,8 @@ option objc_class_prefix = "SMCC";
 import "github.com/grandcat/flexsmc/proto/job/job.proto";
 
 service SMC {
+  // ResetAll stops and removes all open sessions.
+  rpc ResetAll (FilterArgs) returns (job.CmdResult) {}
   // Init acquires a new session providing a dedicated SMC instance.
   rpc Init (SessionCtx) returns (job.CmdResult) {}
   // NextCmd runs the supplied command on the current instance.
@@ -23,4 +25,8 @@ service SMC {
 
 message SessionCtx {
   string sessionID = 1;
+}
+
+message FilterArgs {
+
 }
