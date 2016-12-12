@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"strings"
+
+	"net"
+
 	"github.com/golang/glog"
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
 	"github.com/grandcat/flexsmc/directory"
@@ -13,6 +17,7 @@ import (
 	auth "github.com/grandcat/srpc/authentication"
 	"github.com/grandcat/srpc/pairing"
 	"github.com/grandcat/srpc/server"
+	"github.com/grandcat/zeroconf"
 	"golang.org/x/net/context"
 )
 
@@ -25,6 +30,7 @@ type Gateway struct {
 	server.Server
 	// Own members follow here
 	reg  *directory.Registry
+	mDNS *zeroconf.Server
 	opts GWOptions
 }
 
@@ -148,7 +154,7 @@ func chatLoop(stream proto.Gateway_AwaitSMCRoundServer, ch directory.ChatWithGat
 // GW operation
 
 func (g *Gateway) Run() {
-	glog.Infof("Starting GW operation")
+	glog.Infof("Starting GW: %s", g.Server.CommonName())
 
 	mPairing := pairing.NewServerApproval(g.PeerCerts(), gtypeAny.Any{"flexsmc/peerinfo", []byte(g.opts.NodeInfo)})
 	g.RegisterModules(mPairing)
@@ -172,9 +178,44 @@ func (g *Gateway) Run() {
 				pID.Accept()
 			}
 		}
-
 	}()
 
-	// Start serving (blocking)
+	if g.opts.AnnounceService {
+		g.discovery()
+	}
+	// Start serving (blocking until Ctrl-c)
 	g.Serve()
+	g.cleanShutdown()
+}
+
+func (g *Gateway) discovery() {
+	srv := strings.SplitN(g.Server.CommonName(), ".", 3)
+	srvName := srv[0]
+	srvType := fmt.Sprintf("_%s._tcp", srv[1])
+
+	// Use custom interface if provided. Otherwise, it is nil and zeroconf will
+	// select suitable ones.
+	// Note: this is the recommended way until zeroconf lib correctly publishes IPs
+	// only on interfaces it supports.
+	var ifaces []net.Interface
+	if iface, _ := net.InterfaceByName(g.opts.Inteface); iface != nil {
+		ifaces = []net.Interface{*iface}
+	} else {
+		glog.Warningln("Unrecognized interface, using default.")
+	}
+
+	var err error
+	g.mDNS, err = zeroconf.Register(srvName, srvType, "local", 50051, []string{"txtv=0", "lo=1", "la=2"}, ifaces)
+	if err != nil {
+		glog.Fatalln("Register mDNS service failed:", err.Error())
+	}
+}
+
+func (g *Gateway) cleanShutdown() {
+	<-g.Server.ShuttingDown()
+	glog.Infoln(">> Received shutdown cmd from srpc")
+
+	if g.mDNS != nil {
+		g.mDNS.Shutdown()
+	}
 }

@@ -16,6 +16,7 @@ var (
 	isGateway = flag.Bool("gateway", false, "Set to true to run this node as a gateway")
 	certFile  = flag.String("cert_file", "certs/cert_server.pem", "TLS cert file")
 	keyFile   = flag.String("key_file", "certs/key_server.pem", "TLS key file")
+	iface     = flag.String("interface", "", "Network interface to use for discovery, e.g. enp3s0")
 	enPairing = flag.Bool("enPairing", false, "Enable or disable pairing phase")
 	peerInfo  = flag.String("peerinfo", "123", "Additional peer information supplied during pairing")
 
@@ -29,10 +30,12 @@ func runGateway() {
 		Options: Options{
 			CertFile:   *certFile,
 			KeyFile:    *keyFile,
+			Inteface:   *iface,
 			NodeInfo:   *peerInfo,
 			UsePairing: *enPairing,
 		},
-		Registry: registry,
+		Registry:        registry,
+		AnnounceService: true,
 	}
 	gw := NewGateway(opts)
 	// Invoke some fake client requests

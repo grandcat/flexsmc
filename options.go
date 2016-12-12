@@ -8,17 +8,20 @@ import (
 )
 
 type Options struct {
-	// Certificate for TLS Client Auth and Identification
+	// Certificate for TLS Client Auth and Identification.
 	CertFile string
 	KeyFile  string
-	// Pairing and registration
+	// Interface specifies the interface to pin for discovery.
+	Inteface string
+	// Pairing and registration.
 	NodeInfo   string
 	UsePairing bool
 }
 
 type GWOptions struct {
-	Registry *directory.Registry
-	SRpcOpts []server.Option
+	Registry        *directory.Registry
+	SRpcOpts        []server.Option
+	AnnounceService bool
 	Options
 }
 

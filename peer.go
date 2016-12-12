@@ -11,7 +11,7 @@ import (
 	"github.com/grandcat/flexsmc/smc"
 	"github.com/grandcat/srpc/client"
 	"github.com/grandcat/srpc/pairing"
-	"github.com/grandcat/zeroconf.sd"
+	"github.com/grandcat/zeroconf"
 	"golang.org/x/net/context"
 )
 
@@ -36,7 +36,7 @@ type Peer struct {
 	gclient   proto.GatewayClient
 	modInfo   modules.ModuleContext
 	modCancel context.CancelFunc
-	mdns      *bonjour.Resolver
+	mdns      *zeroconf.Resolver
 
 	state     RunState
 	connRetry int
@@ -51,7 +51,7 @@ func NewPeer(opts PeerOptions) *Peer {
 		smcConn = smc.DefaultSMCConnector("")
 	}
 
-	mdns, err := bonjour.NewResolver(nil)
+	mdns, err := zeroconf.NewResolver(nil)
 	if err != nil {
 		glog.Fatal("Fatal mDNS error:", err)
 	}
@@ -224,7 +224,8 @@ func (p *Peer) watchService() (next RunState) {
 	p.modCancel()
 	p.modInfo.WaitAll()
 	glog.V(1).Infof("!!! %d faults by modules so far. Restarting all modules with new connection.", p.faults)
-	// p.srpc.TearDown()
+
+	// TODO: periodic backoff for retries
 
 	next = Connecting
 	return
