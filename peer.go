@@ -137,6 +137,12 @@ func (p *Peer) startPairing() (next RunState) {
 		gwIdentity, err := mPairing.StartPairing(ctx, &gtypeAny.Any{"flexsmc/peerinfo", []byte(p.opts.NodeInfo)})
 		if err != nil {
 			glog.Errorf("Pairing with %s failed: %v", peerID, err)
+			// XXX: GW might deny our request due to a previous pairing.
+			//		Let's assume GW's storage is inconsistent so just try connecting as normally.
+			//		Note that this is a temporary fix only to accelerate inconsistent test environments.
+			if p.opts.UsePairing {
+				next = Resolving
+			}
 			return
 		}
 		// Pairing commissioning
