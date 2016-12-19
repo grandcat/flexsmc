@@ -17,6 +17,7 @@ var (
 	certFile  = flag.String("cert_file", "certs/cert_server.pem", "TLS cert file")
 	keyFile   = flag.String("key_file", "certs/key_server.pem", "TLS key file")
 	iface     = flag.String("interface", "", "Network interface to use for discovery, e.g. enp3s0")
+	gwID      = flag.String("gw_id", "n1.flexsmc.local", "Gateway mDNS identifer (will be obsolete in future)")
 	enPairing = flag.Bool("enPairing", false, "Enable or disable pairing phase")
 	peerInfo  = flag.String("peerinfo", "123", "Additional peer information supplied during pairing")
 
@@ -69,6 +70,7 @@ func runPeer() {
 			NodeInfo:   *peerInfo,
 			UsePairing: *enPairing,
 		},
+		GatewayID:  *gwID,
 		smcBackend: smc.DefaultSMCConnector(*smcConnSock),
 	}
 	peer := NewPeer(opts)

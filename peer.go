@@ -102,7 +102,8 @@ func (p *Peer) Operate() {
 
 func (p *Peer) discover() (next RunState) {
 	// If not known, initiate pairing
-	knownGW := p.srpc.PeerCerts().ActivePeerCertificates("gw4242.flexsmc.local")
+	peerID := p.opts.GatewayID
+	knownGW := p.srpc.PeerCerts().ActivePeerCertificates(peerID)
 	// knownGW := 0
 	if knownGW == 0 || p.opts.UsePairing {
 		next = Pairing
@@ -113,8 +114,7 @@ func (p *Peer) discover() (next RunState) {
 }
 
 func (p *Peer) startPairing() (next RunState) {
-	const peerID = "gw4242.flexsmc.local"
-	// const peerID = "gw4242.local"
+	peerID := p.opts.GatewayID
 	// 2. Initiate pairing if it is an unknown identity (if desired)
 	// knownGW := p.srpc.PeerCerts().ActivePeerCertificates(peerID)
 	if p.opts.UsePairing {
@@ -158,8 +158,7 @@ func (p *Peer) startPairing() (next RunState) {
 }
 
 func (p *Peer) prepareConnection() (next RunState) {
-	const peerID = "gw4242.flexsmc.local"
-	// const peerID = "gw4242.local"
+	peerID := p.opts.GatewayID
 	// Join the SMC network.
 	cc, err := p.srpc.Dial(peerID)
 	if err != nil {

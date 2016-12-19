@@ -26,6 +26,7 @@ type GWOptions struct {
 }
 
 type PeerOptions struct {
+	GatewayID  string
 	smcBackend smc.Connector
 	SRpcOpts   []client.Option
 	Options
