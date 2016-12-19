@@ -11,17 +11,17 @@ defaultOpts="-log_dir logs -logtostderr=true -v 2"
 # Assembly of options passed to flexsmc executable.
 opts=""
 
-# Set defaults or replace them by configuration.
-ID="${FLEX_ID:-1}"
-gwRole="${FLEX_ROLE_GW:-0}"
-eth="${FLEX_IFACE:-}"
-
 # Include the host-specific configuration.
 if [ -f "${scriptPath}/../flex-host.sh" ]; then
 	. ${scriptPath}/../flex-host.sh
 else
 	>&2 echo "No flex-host.sh found! Using defaults."
 fi
+
+# Set defaults or replace them by configuration.
+ID="${FLEX_ID:-1}"
+gwRole="${FLEX_ROLE_GW:-0}"
+eth="${FLEX_IFACE:-}"
 
 # Set node certificates.
 cert_dir="certs"
