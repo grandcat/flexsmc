@@ -11,6 +11,9 @@ type Pipe interface {
 
 type Pipeline struct {
 	pipes []Pipe
+
+	// Optional
+	dgbPipes []Pipe
 }
 
 func NewPipeline(pipes ...Pipe) *Pipeline {
@@ -22,11 +25,21 @@ func NewPipeline(pipes ...Pipe) *Pipeline {
 
 func (p *Pipeline) Process(task *pbJob.SMCTask) (*worker.JobInstruction, error) {
 	changeset := &worker.JobInstruction{}
-	for _, pipe := range p.pipes {
+	selectedPipes := p.pipes
+	// Use different pipes for debug aggregators in DEBUG mode.
+	if task.Aggregator >= pbJob.Aggregator_DBG_PINGPONG && len(p.dgbPipes) > 0 {
+		selectedPipes = p.dgbPipes
+	}
+	// Process.
+	for _, pipe := range selectedPipes {
 		err := pipe.Process(task, changeset)
 		if err != nil {
 			return nil, err
 		}
 	}
 	return changeset, nil
+}
+
+func (p *Pipeline) DedicatedDebugPipes(pipes ...Pipe) {
+	p.dgbPipes = pipes
 }

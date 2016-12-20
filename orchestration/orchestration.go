@@ -23,12 +23,15 @@ type FifoOrchestration struct {
 }
 
 func NewFIFOOrchestration(reg *directory.Registry) Orchestration {
-	// Init preprocessing pipeline
+	// Init preprocessing pipeline for production
 	pipe0 := &pipeline.GroupMap{Reg: reg}
 	pipe1 := &pipeline.OnlineFilter{Reg: reg}
 	pipe2 := &pipeline.ContinousChanID{}
 	pipe3 := &pipeline.PhaseBuilder{}
 	processInput := pipeline.NewPipeline(pipe0, pipe1, pipe2, pipe3)
+	// Special pipeline for debugging
+	dbgPipe0 := &pipeline.DbgPingPong{}
+	processInput.DedicatedDebugPipes(pipe0, pipe1, dbgPipe0)
 
 	return &FifoOrchestration{
 		reg:      reg,
