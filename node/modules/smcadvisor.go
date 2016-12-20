@@ -11,6 +11,8 @@ import (
 	"github.com/grandcat/flexsmc/smc"
 )
 
+const interJobWaitMS = 5
+
 // SMCAdvisor receives SMC jobs, schedules them to available resources of the SMC
 // backend and manages the low-level connection handling between GW and this peer.
 type SMCAdvisor struct {
@@ -48,7 +50,7 @@ func (s *SMCAdvisor) BlockingSpawn() {
 			s.reportFault(err)
 			break
 		}
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond * interJobWaitMS)
 	}
 
 }
@@ -60,7 +62,7 @@ func (s *SMCAdvisor) SpawnBridge() error {
 		glog.V(1).Infof("Reservation of SMC backend failed: %v", err)
 		return err
 	}
-	// once a stand-by SMC instance is available, a C&C channel is established
+	// Once a stand-by SMC instance is available, a C&C channel is established
 	// to receive SMC commands.
 	stream, err := s.GWConn.AwaitSMCRound(s.context)
 	if err != nil {

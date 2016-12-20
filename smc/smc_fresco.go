@@ -14,7 +14,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-const parallelSessions int = 1
+const parallelSessions int = 2
 
 var (
 	errInvalidCmd = errors.New("invalid command")
