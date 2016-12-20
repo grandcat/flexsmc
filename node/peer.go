@@ -1,4 +1,4 @@
-package main
+package node
 
 import (
 	"math"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	gtypeAny "github.com/golang/protobuf/ptypes/any"
-	"github.com/grandcat/flexsmc/modules"
+	"github.com/grandcat/flexsmc/node/modules"
 	proto "github.com/grandcat/flexsmc/proto"
 	"github.com/grandcat/flexsmc/smc"
 	"github.com/grandcat/srpc/client"
@@ -44,9 +44,9 @@ type Peer struct {
 }
 
 func NewPeer(opts PeerOptions) *Peer {
-	srpcOpts := append(opts.SRpcOpts, client.TLSKeyFile(*certFile, *keyFile))
+	srpcOpts := append(opts.SRpcOpts, client.TLSKeyFile(opts.CertFile, opts.KeyFile))
 
-	smcConn := opts.smcBackend
+	smcConn := opts.SmcBackend
 	if smcConn == nil {
 		smcConn = smc.DefaultSMCConnector("")
 	}

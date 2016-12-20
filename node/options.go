@@ -1,4 +1,4 @@
-package main
+package node
 
 import (
 	"github.com/grandcat/flexsmc/directory"
@@ -27,7 +27,7 @@ type GWOptions struct {
 
 type PeerOptions struct {
 	GatewayID  string
-	smcBackend smc.Connector
+	SmcBackend smc.Connector
 	SRpcOpts   []client.Option
 	Options
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/grandcat/flexsmc/directory"
+	"github.com/grandcat/flexsmc/node"
 	"github.com/grandcat/flexsmc/orchestration"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"github.com/grandcat/flexsmc/smc"
@@ -14,11 +15,11 @@ import (
 
 var (
 	isGateway = flag.Bool("gateway", false, "Set to true to run this node as a gateway")
-	certFile  = flag.String("cert_file", "certs/cert_server.pem", "TLS cert file")
-	keyFile   = flag.String("key_file", "certs/key_server.pem", "TLS key file")
+	certFile  = flag.String("cert_file", "certs/cert_1.pem", "TLS cert file")
+	keyFile   = flag.String("key_file", "certs/key_1.pem", "TLS key file")
 	iface     = flag.String("interface", "", "Network interface to use for discovery, e.g. enp3s0")
 	gwID      = flag.String("gw_id", "n1.flexsmc.local", "Gateway mDNS identifer (will be obsolete in future)")
-	enPairing = flag.Bool("enPairing", false, "Enable or disable pairing phase")
+	enPairing = flag.Bool("pairing", false, "Enable or disable pairing phase")
 	peerInfo  = flag.String("peerinfo", "123", "Additional peer information supplied during pairing")
 
 	smcConnSock = flag.String("smcsocket", "", "Custom SMC socket to pass to SMC connector")
@@ -27,8 +28,8 @@ var (
 func runGateway() {
 	registry := directory.NewRegistry()
 
-	opts := GWOptions{
-		Options: Options{
+	opts := node.GWOptions{
+		Options: node.Options{
 			CertFile:   *certFile,
 			KeyFile:    *keyFile,
 			Inteface:   *iface,
@@ -38,7 +39,7 @@ func runGateway() {
 		Registry:        registry,
 		AnnounceService: true,
 	}
-	gw := NewGateway(opts)
+	gw := node.NewGateway(opts)
 	// Invoke some fake client requests
 	orchestration := orchestration.NewFIFOOrchestration(registry)
 	go func() {
@@ -63,17 +64,17 @@ func runGateway() {
 // starts pairing phase if it is an unknown identity and joins the SMC network as a slave. Still,
 // it holds the same data as the gateway to be a potential failover candidate if the gateway breaks.
 func runPeer() {
-	opts := PeerOptions{
-		Options: Options{
+	opts := node.PeerOptions{
+		Options: node.Options{
 			CertFile:   *certFile,
 			KeyFile:    *keyFile,
 			NodeInfo:   *peerInfo,
 			UsePairing: *enPairing,
 		},
 		GatewayID:  *gwID,
-		smcBackend: smc.DefaultSMCConnector(*smcConnSock),
+		SmcBackend: smc.DefaultSMCConnector(*smcConnSock),
 	}
-	peer := NewPeer(opts)
+	peer := node.NewPeer(opts)
 	peer.Init()
 	peer.Run()
 }
