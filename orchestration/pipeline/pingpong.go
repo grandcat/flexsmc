@@ -16,7 +16,7 @@ func (pp *DbgPingPong) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 	}
 
 	// TODO: generate unique session ID
-	sessID := "f13x0123456789"
+	sessID := "f13xdbg"
 
 	// Debug phase
 	p1 := &pbJob.SMCCmd{

@@ -174,7 +174,7 @@ func (g *Gateway) Run() {
 			select {
 			case pID := <-registered:
 				glog.Infoln("Incoming registration from:", pID.Fingerprint(), "with details:", pID.Details())
-				time.Sleep(time.Second * 2) //< Simulate an out-of-band verification. Takes some time...
+				time.Sleep(time.Second * 1) //< Simulate an out-of-band verification. Takes some time...
 				pID.Accept()
 			}
 		}
