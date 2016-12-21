@@ -1,0 +1,3 @@
+#!/bin/bash
+go test -v -bench=. -benchtime 10s -args -interface=enp3s0 -stats_granularity=1 -stats_id=num:3_bla:123
+

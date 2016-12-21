@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/golang/glog"
+	"github.com/grandcat/flexsmc/benchmark/statistics"
 	"github.com/grandcat/flexsmc/directory"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	auth "github.com/grandcat/srpc/authentication"
@@ -260,6 +261,9 @@ func (j *job) closeAllChats() {
 var ErrCtxOrStreamFailure = errors.New("ctx timeout or stream failure")
 
 func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob.CmdResult, *PeerError) {
+	// Profile execution time if activated.
+	defer statistics.G(1).End(cmd.GetPayload(), statistics.StartTrack())
+
 	// First, disseminate the job to all peers.
 	// Then, collect all results, but expect the results to be there until timeout occurs.
 	for _, pch := range j.chats {
