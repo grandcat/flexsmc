@@ -22,6 +22,9 @@ fi
 ID="${FLEX_ID:-1}"
 gwRole="${FLEX_ROLE_GW:-0}"
 eth="${FLEX_IFACE:-}"
+# Sensor node specifica
+smcSocket="${FLEX_SMCSOCK:-unix:///tmp/grpc-flexsmc.sock}"
+enPairing=1
 
 # Set node certificates.
 cert_dir="certs"
@@ -39,7 +42,7 @@ if [ $gwRole -eq 1 ]; then
 	echo "Node is gateway"
 else
 	## Sensor node specific configuration.
-	opts+=" -enPairing=1 -smcsocket unix:///tmp/grpc-flexsmc.sock"
+	opts+=" -pairing=${enPairing} -smcsocket ${smcSocket}"
 fi
 
 echo "Execute: ${scriptPath}/flexsmc ${opts} ${defaultOpts}"
