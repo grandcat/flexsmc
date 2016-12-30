@@ -3,8 +3,9 @@ package statistics
 import (
 	"bufio"
 	"flag"
+	"fmt"
+	"io/ioutil"
 	"log"
-	"os"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -17,31 +18,27 @@ import (
 // E.g. `github.com/grandcat/flexsmc/benchmark/timelog.Test_enter` -> `timelog.Test_enter`
 var extractFnName = regexp.MustCompile(`^.*\/(.*)$`)
 
-var timeLogger = newTimeLog()
+var timeLogger *timeLog
 
 type timeLog struct {
-	writer *bufio.Writer
-	logger *log.Logger
+	fileName string
+	writer   *bufio.Writer
+	logger   *log.Logger
 
 	setPrefix   string //< filled via flags
 	granularity Level  //< filled via flags by default
 }
 
-func newTimeLog() timeLog {
-	// Prepare output files.
-	f, err := os.OpenFile("stats_log.out", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+func (tl *timeLog) createLog(filePrefix string) {
+	// Prepare output file.
+	f, err := ioutil.TempFile(".", filePrefix)
+	// f, err := os.OpenFile(filePrefix, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0664)
 	if err != nil {
 		panic("Could not open file for writing.")
 	}
-	w := bufio.NewWriter(f)
-	// Prepare logger.
-	logger := log.New(w, "", 0)
-
-	tl := timeLog{
-		writer: w,
-		logger: logger,
-	}
-	return tl
+	// Prepare buffered writer.
+	tl.writer = bufio.NewWriter(f)
+	tl.logger = log.New(tl.writer, "", 0)
 }
 
 // output forms a CSV entry with all items separated by a commata, and sends
@@ -70,8 +67,21 @@ func (tl *timeLog) flush() {
 }
 
 func init() {
+	timeLogger = new(timeLog)
+
 	flag.StringVar(&timeLogger.setPrefix, "stats_id", "", "Set the prefix identifier to distinguish different test configurations")
 	flag.Var(&timeLogger.granularity, "stats_granularity", "granularity")
+	// flag.Parse()
+	t := time.Now()
+	filePrefix := fmt.Sprintf("stats.log.%04d%02d%02d-%02d%02d%02d.tmp",
+		t.Year(),
+		t.Month(),
+		t.Day(),
+		t.Hour(),
+		t.Minute(),
+		t.Second(),
+	)
+	timeLogger.createLog(filePrefix)
 }
 
 func SetGranularity(lev Level) {
