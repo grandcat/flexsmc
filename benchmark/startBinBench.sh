@@ -2,7 +2,7 @@
 
 scriptPath=$(dirname $0)
 # Include the host-specific configuration.
-if [ -f "${scriptPath}/../flex-host.sh" ]; then
+if [ -f "${scriptPath}/../../flex-host.sh" ]; then
 	. ${scriptPath}/../../flex-host.sh
 else
 	>&2 echo "No flex-host.sh found! Using defaults."
