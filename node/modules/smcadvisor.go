@@ -90,7 +90,7 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 	for moreCmds {
 		in, err := stream.Recv()
 		if err == io.EOF {
-			glog.Warningf("->Rcv: GW EOF")
+			glog.V(2).Info("->Rcv: GW EOF")
 			break
 		}
 		if err != nil {

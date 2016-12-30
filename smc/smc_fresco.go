@@ -171,7 +171,7 @@ func (s *frescoSession) TearDown() {
 		s.condFreeResources()
 
 	} else {
-		glog.V(1).Infof("SMC_FRESCO: no tear-down, already invoked.")
+		glog.V(2).Infof("No tear-down, already invoked.")
 	}
 }
 

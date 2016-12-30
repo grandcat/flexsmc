@@ -27,3 +27,6 @@ debug
 # IDE files
 ## VSCode
 .vscode/
+
+# Logs
+logs/
