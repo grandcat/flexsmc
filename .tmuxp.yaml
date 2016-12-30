@@ -8,9 +8,9 @@ windows:
     - cd .
   panes:
     - shell_command:
-      - ./flexsmc --gateway -logtostderr=true -v 2
+      - FLEX_ROLE_GW=1 FLEX_ID=1 FLEX_IFACE=wlp4s0 ./startNode.sh
     - shell_command:
-      - ./flexsmc -cert_file certs/cert_client3.pem -key_file certs/key_client3.pem -smcsocket "unix:///tmp/grpc1.sock" -logtostderr -v 2
+      - FLEX_ID=2 FLEX_SMCSOCK=unix:///tmp/grpc1.sock FLEX_IFACE=wlp4s0 ./startNode.sh
     - shell_command:
-      - ./flexsmc -cert_file certs/cert_client4.pem -key_file certs/key_client4.pem -smcsocket "unix:///tmp/grpc2.sock" -logtostderr -v 3
+      - FLEX_ID=3 FLEX_SMCSOCK=unix:///tmp/grpc2.sock FLEX_IFACE=wlp4s0 ./startNode.sh
     - pwd

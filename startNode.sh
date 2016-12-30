@@ -7,7 +7,6 @@
 #######################################################################
 
 scriptPath=$(dirname $0)
-defaultOpts="-log_dir logs -logtostderr=true -v 2"
 # Assembly of options passed to flexsmc executable.
 opts=""
 
@@ -22,7 +21,8 @@ fi
 ID="${FLEX_ID:-1}"
 gwRole="${FLEX_ROLE_GW:-0}"
 eth="${FLEX_IFACE:-}"
-# Sensor node specifica
+logLev="${DEBUG_LEVEL:-1}"
+# Sensor node specific settings.
 smcSocket="${FLEX_SMCSOCK:-unix:///tmp/grpc-flexsmc.sock}"
 enPairing=1
 
@@ -45,5 +45,11 @@ else
 	opts+=" -pairing=${enPairing} -smcsocket ${smcSocket}"
 fi
 
-echo "Execute: ${scriptPath}/flexsmc ${opts} ${defaultOpts}"
-${scriptPath}/flexsmc ${opts} ${defaultOpts}
+# Logging
+logOpts="-log_dir logs -v ${logLev} -alsologtostderr"
+
+# Aggregated params
+FLEX_ARGS="${opts} ${logOpts}"
+
+echo "Execute: ${scriptPath}/flexsmc ${FLEX_ARGS}"
+${scriptPath}/flexsmc ${FLEX_ARGS}
