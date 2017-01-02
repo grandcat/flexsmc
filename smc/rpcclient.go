@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	defaultSocket = "unix:/tmp/grpc.sock"
+	defaultSocket = "unix:/tmp/grpc-flexsmc1.sock"
 )
 
 // DialSocket connects to a gRPC server via a local socket.

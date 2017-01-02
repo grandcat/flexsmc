@@ -2,6 +2,7 @@ package benchmark
 
 import (
 	"flag"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +19,10 @@ var (
 	certFile = flag.String("cert_file", "../certs/cert_1.pem", "TLS cert file")
 	keyFile  = flag.String("key_file", "../certs/key_1.pem", "TLS key file")
 	iface    = flag.String("interface", "", "Network interface to use for discovery, e.g. enp3s0")
+)
+
+var (
+	numNodes = flag.Int("num_nodes", 3, "Maximum number of nodes used in tests")
 )
 
 var server *testNode
@@ -69,7 +74,14 @@ func frescoPing(b *testing.B, tn *testNode, task *pbJob.SMCTask, timeout time.Du
 	// b.ResetTimer()
 	start := statistics.StartTrack()
 	res, err := tn.orch.Request(jCtx, task)
-	statistics.G(0).End(res, start, task.Aggregator.String())
+
+	var resStr, resErr string
+	if err != nil {
+		resErr = err.Error()
+	} else {
+		resStr = strconv.FormatFloat(res.Res, 'f', 2, 64)
+	}
+	statistics.G(0).End(res, start, task.Aggregator.String(), resStr, resErr)
 	// b.StopTimer()
 	if err != nil {
 		b.Logf("Request failed: %v", err)
@@ -86,8 +98,8 @@ func BenchmarkAppendFloat(b *testing.B) {
 		name string
 		task *pbJob.SMCTask
 	}{
-		{"GroupDebug", &pbJob.SMCTask{Set: "debuggroup", Aggregator: pbJob.Aggregator_DBG_PINGPONG}},
-		{"Group2", &pbJob.SMCTask{Set: "dummygroup2", Aggregator: pbJob.Aggregator_SUM}},
+		{"PingPong", &pbJob.SMCTask{Set: "bench", Aggregator: pbJob.Aggregator_DBG_PINGPONG}},
+		{"SingleSum", &pbJob.SMCTask{Set: "benchgroup2", Aggregator: pbJob.Aggregator_SUM}},
 	}
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
@@ -98,7 +110,7 @@ func BenchmarkAppendFloat(b *testing.B) {
 				// Give nodes some ms to recover for next job round.
 				// b.StopTimer()
 				statistics.GracefulFlush()
-				time.Sleep(time.Millisecond * 30)
+				time.Sleep(time.Millisecond * 50)
 				// b.StartTimer()
 			}
 		})

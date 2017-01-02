@@ -95,6 +95,10 @@ func (j *job) recycleJob(ctx context.Context, newInstr JobInstruction, opts []Jo
 	// Jobs still compatible?
 	// XXX: do more in-depth incompatibility check
 	if !j.isJobHalted() {
+		if j.lastErr == nil {
+			glog.Warning("lastErr not set! Ignoring, but needs fix!")
+			return &JobError{err: ErrNotHalted}
+		}
 		return &JobError{err: ErrNotHalted, status: j.lastErr.status}
 	}
 	if len(newInstr.Tasks) < len(j.instr.Tasks) {
