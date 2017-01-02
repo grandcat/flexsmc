@@ -30,4 +30,5 @@ debug
 .vscode/
 
 # Logs
+stats.log.*
 logs/

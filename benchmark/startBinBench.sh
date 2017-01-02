@@ -32,4 +32,4 @@ echo "Args: ${FLEX_ARGS} ${*}"
 
 cmd="binBench -test.bench=. -test.benchtime ${benchTime} ${FLEX_ARGS} -stats_granularity=1 ${*}" #" -stats_id=num_3_bla_123 "
 echo ${scriptPath}/$cmd
-# ${scriptPath}/${cmd}
+${scriptPath}/${cmd}
