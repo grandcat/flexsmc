@@ -20,7 +20,7 @@ gwRole="${FLEX_ROLE_GW:-0}"
 eth="${FLEX_IFACE:-}"
 logLev="${DEBUG_LEVEL:-1}"
 # Sensor node specific settings.
-smcSocket="${FLEX_SMCSOCK:-unix:///tmp/grpc-flexsmc.sock}"
+smcSocket="${FLEX_SMCSOCK:-unix:///tmp/grpc-flexsmc1.sock}"
 enPairing=1
 
 # Assembly of options passed to flexsmc executable.
