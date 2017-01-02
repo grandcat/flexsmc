@@ -30,8 +30,8 @@ type timeLog struct {
 }
 
 func (tl *timeLog) createLog(filePrefix string) {
-	// Prepare output file.
-	f, err := ioutil.TempFile(".", filePrefix)
+	// Prepare unique output file in temp folder.
+	f, err := ioutil.TempFile("", filePrefix)
 	// f, err := os.OpenFile(filePrefix, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0664)
 	if err != nil {
 		panic("Could not open file for writing.")
