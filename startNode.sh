@@ -7,9 +7,6 @@
 #######################################################################
 
 scriptPath=$(dirname $0)
-# Assembly of options passed to flexsmc executable.
-opts=""
-
 # Include the host-specific configuration.
 if [ -f "${scriptPath}/../flex-host.sh" ]; then
 	. ${scriptPath}/../flex-host.sh
@@ -26,6 +23,8 @@ logLev="${DEBUG_LEVEL:-1}"
 smcSocket="${FLEX_SMCSOCK:-unix:///tmp/grpc-flexsmc.sock}"
 enPairing=1
 
+# Assembly of options passed to flexsmc executable.
+opts=""
 # Set node certificates.
 cert_dir="certs"
 opts+=" -key_file ${cert_dir}/key_${ID}.pem -cert_file ${cert_dir}/cert_${ID}.pem"
