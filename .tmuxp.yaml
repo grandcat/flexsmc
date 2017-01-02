@@ -8,9 +8,9 @@ windows:
     - cd .
   panes:
     - shell_command:
-      - FLEX_ROLE_GW=1 FLEX_ID=1 FLEX_IFACE=wlp4s0 ./startNode.sh
+      - FLEX_ROLE_GW=1 FLEX_ID=1 FLEX_IFACE=wlp4s0 ./runNode.sh
     - shell_command:
-      - FLEX_ID=2 FLEX_SMCSOCK=unix:///tmp/grpc-flexsmc1.sock FLEX_IFACE=wlp4s0 ./startNode.sh 
+      - FLEX_ID=2 FLEX_SMCSOCK=unix:///tmp/grpc-flexsmc1.sock FLEX_IFACE=wlp4s0 ./runNode.sh 
     - shell_command:
-      - FLEX_ID=3 FLEX_SMCSOCK=unix:///tmp/grpc-flexsmc2.sock FLEX_IFACE=wlp4s0 ./startNode.sh 
+      - FLEX_ID=3 FLEX_SMCSOCK=unix:///tmp/grpc-flexsmc2.sock FLEX_IFACE=wlp4s0 ./runNode.sh 
     - pwd
