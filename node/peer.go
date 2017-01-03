@@ -97,6 +97,7 @@ func (p *Peer) Operate() {
 		case Restart:
 			p.state = p.cleanRestart()
 		}
+		glog.Flush()
 	}
 }
 
