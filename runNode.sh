@@ -45,7 +45,7 @@ else
 fi
 
 # Logging
-logOpts="-log_dir logs -v ${logLev} -alsologtostderr"
+logOpts="-v ${logLev} -alsologtostderr"
 
 # Aggregated params
 FLEX_ARGS="${opts} ${logOpts}"
