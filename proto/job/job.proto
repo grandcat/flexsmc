@@ -34,11 +34,19 @@ enum Aggregator {
     DBG_PINGPONG    = 1000;
 }
 
+message Option {
+    oneof optValue {
+        string str = 1;
+        int32 dec  = 2;
+    }
+}
+
 message SMCTask {
-    string set            = 1;
-    DataOrigin source     = 2;
+    string set                       = 1;
+    DataOrigin source                = 2;
     // (Pre)Selectors
-    Aggregator aggregator = 4;
+    Aggregator aggregator            = 4;
+    map<string, Option> options      = 6;
     string ticketSignature           = 7;
 
     google.protobuf.Timestamp issued = 8;
