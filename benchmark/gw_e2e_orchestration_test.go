@@ -22,7 +22,7 @@ var (
 )
 
 var (
-	numNodes = flag.Int("num_nodes", 3, "Maximum number of nodes used in tests")
+	reqNumPeers = flag.Int("req_nodes", 0, "Required number of participating peers. 0 means any number of currently online peers.")
 )
 
 var server *testNode
@@ -33,7 +33,6 @@ func init() {
 	// Start GW server.
 	server = newTestNode()
 	server.startGateway()
-	time.Sleep(time.Second * 12)
 }
 
 type testNode struct {
@@ -68,6 +67,33 @@ func (tn *testNode) startGateway() {
 	go tn.gw.Run()
 }
 
+// awaitPeers keeps on submitting simple probes until the pipe
+// accepts the request due to the statistied amount of connected peers.
+func (tn *testNode) awaitPeers(timeout time.Duration, reqNumber int32) error {
+	jCtx, jCancel := context.WithTimeout(context.Background(), timeout)
+	defer jCancel()
+
+	taskOption := map[string]*pbJob.Option{
+		"minNumPeers": &pbJob.Option{&pbJob.Option_Dec{reqNumber}},
+		"maxNumPeers": &pbJob.Option{&pbJob.Option_Dec{reqNumber}},
+	}
+	task := &pbJob.SMCTask{
+		Set:        "Wait_for_enough_peers",
+		Aggregator: pbJob.Aggregator_DBG_PINGPONG,
+		Options:    taskOption,
+	}
+
+	for jCtx.Err() == nil {
+		_, err := tn.orch.Request(jCtx, task)
+		if err == nil {
+			return nil
+		}
+		time.Sleep(time.Second * 2)
+	}
+
+	return jCtx.Err()
+}
+
 func frescoPing(b *testing.B, tn *testNode, task *pbJob.SMCTask, timeout time.Duration) {
 	jCtx, jCancel := context.WithTimeout(context.Background(), timeout)
 
@@ -93,13 +119,30 @@ func frescoPing(b *testing.B, tn *testNode, task *pbJob.SMCTask, timeout time.Du
 	jCancel()
 }
 
-func BenchmarkAppendFloat(b *testing.B) {
+func BenchmarkFrescoE2ESimple(b *testing.B) {
+	// Wait for peers to become ready.
+	taskOption := map[string]*pbJob.Option{}
+	if *reqNumPeers != 0 {
+		n := int32(*reqNumPeers)
+		b.Logf("Waiting for %d nodes to become ready...", n)
+		err := server.awaitPeers(time.Second*40, n)
+		if err != nil {
+			b.Fatal("Not enough peers:", err.Error())
+			b.FailNow()
+		}
+		b.Logf("%d nodes ready, starting.", n)
+
+		// Configure taskOption to maintain required number of peers constantly.
+		taskOption["minNumPeers"] = &pbJob.Option{&pbJob.Option_Dec{n}}
+		taskOption["maxNumPeers"] = &pbJob.Option{&pbJob.Option_Dec{n}}
+	}
+	// Run bench.
 	benchmarks := []struct {
 		name string
 		task *pbJob.SMCTask
 	}{
-		{"PingPong", &pbJob.SMCTask{Set: "bench", Aggregator: pbJob.Aggregator_DBG_PINGPONG}},
-		{"SingleSum", &pbJob.SMCTask{Set: "benchgroup2", Aggregator: pbJob.Aggregator_SUM}},
+		{"PingPong", &pbJob.SMCTask{Set: "bench", Aggregator: pbJob.Aggregator_DBG_PINGPONG, Options: taskOption}},
+		{"SingleSum", &pbJob.SMCTask{Set: "benchgroup2", Aggregator: pbJob.Aggregator_SUM, Options: taskOption}},
 	}
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
@@ -114,5 +157,7 @@ func BenchmarkAppendFloat(b *testing.B) {
 				// b.StartTimer()
 			}
 		})
+		// Write buffered statistics to disk if necessary.
+		statistics.GracefulFlush()
 	}
 }

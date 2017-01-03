@@ -14,6 +14,7 @@ eth="${FLEX_IFACE:-}"
 logLev="${DEBUG_LEVEL:-1}"
 
 # Test and benchmark parameters
+reqPeers="${1:-0}"
 benchTime="${BENCH_TIME:-10s}"
 
 # Assembly options passed to flexsmc executable.
@@ -30,6 +31,6 @@ fi
 
 echo "Args: ${FLEX_ARGS} ${*}"
 
-cmd="binBench -test.bench=. -test.benchtime ${benchTime} ${FLEX_ARGS} -stats_granularity=1 ${*}" #" -stats_id=num_3_bla_123 "
+cmd="binBench -test.bench=. -test.benchtime ${benchTime} ${FLEX_ARGS} -stats_granularity=1 -stats_id=num_${reqPeers} -req_nodes=${reqPeers}" #" -stats_id=num_3_bla_123 "
 echo ${scriptPath}/$cmd
 ${scriptPath}/${cmd}
