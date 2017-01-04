@@ -21,7 +21,10 @@ func (pp *DbgPingPong) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 	// Debug phase
 	p1 := &pbJob.SMCCmd{
 		SessionID: sessID,
-		Payload:   &pbJob.SMCCmd_Debug{Debug: &pbJob.DebugPhase{Ping: 42}},
+		Payload: &pbJob.SMCCmd_Debug{Debug: &pbJob.DebugPhase{
+			Ping:    42,
+			Options: task.Options,
+		}},
 	}
 
 	inOut.Tasks = append(inOut.Tasks, p1)

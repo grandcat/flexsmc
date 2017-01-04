@@ -3,8 +3,6 @@ package aggregation
 import (
 	"errors"
 
-	"fmt"
-
 	"github.com/golang/glog"
 	"github.com/grandcat/flexsmc/orchestration/worker"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
@@ -50,8 +48,7 @@ loop:
 				lastProgress = res.Progress
 			}
 
-			glog.V(3).Infof("Received %v", res.Response)
-			fmt.Printf("Received %v \n", res.Response)
+			glog.V(4).Infof("Received %v", res.Response)
 			msgBuf[int(res.Progress)] = append(msgBuf[int(res.Progress)], res.Response)
 
 		case <-ctx.Done():
@@ -68,7 +65,7 @@ loop:
 	if err := analyzeResultConsistency(msgBuf[finalResultIndex]); err != nil {
 		return nil, err
 	}
-	fmt.Printf("Progress %d: msg->%v \n", lastProgress, msgBuf[finalResultIndex])
+	glog.V(3).Infof("Progress %d: msg->%v \n", lastProgress, msgBuf[finalResultIndex])
 	return msgBuf[finalResultIndex][0].Result, nil
 }
 

@@ -7,12 +7,18 @@
 #######################################################################
 
 scriptPath=$(dirname $0)
+
+# XXX: change to 0 after local debugging
+FLEX_DEBUG_MODE=1
 # Include the host-specific configuration.
 if [ -f "${scriptPath}/../flex-host.sh" ]; then
 	. ${scriptPath}/../flex-host.sh
 else
 	>&2 echo "No flex-host.sh found! Using defaults."
 fi
+
+# Export local vars (overwritten by flex-host.sh).
+export FLEX_DEBUG_MODE
 
 # Set defaults or replace them by configuration.
 ID="${FLEX_ID:-1}"
@@ -22,6 +28,8 @@ logLev="${DEBUG_LEVEL:-1}"
 # Sensor node specific settings.
 smcSocket="${FLEX_SMCSOCK:-unix:///tmp/grpc-flexsmc1.sock}"
 enPairing=1
+# Benchmark specific settings.
+benchGranularity="${BENCH_STATS_GRANULARITY:-0}"
 
 # Assembly of options passed to flexsmc executable.
 opts=""
@@ -46,6 +54,9 @@ fi
 
 # Logging
 logOpts="-v ${logLev} -alsologtostderr"
+
+# Benchmark
+logOpts+=" -stats_granularity=${benchGranularity}"
 
 # Aggregated params
 FLEX_ARGS="${opts} ${logOpts}"

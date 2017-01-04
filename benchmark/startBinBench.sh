@@ -29,8 +29,11 @@ if [[ ! -z "${eth// }" ]]; then
 	echo "Custom inteface: ${eth// }"
 fi
 
+# Construct experiment ID
+EXPERIMENT_ID="peers_${reqPeers}_cores_0_freq_0_netlat_0"
+
 echo "Args: ${FLEX_ARGS} ${*}"
 
-cmd="binBench -test.bench=. -test.benchtime ${benchTime} ${FLEX_ARGS} -stats_granularity=1 -stats_id=num_${reqPeers} -req_nodes=${reqPeers}" #" -stats_id=num_3_bla_123 "
+cmd="binBench -test.bench=. -test.v=1 -test.benchtime ${benchTime} ${FLEX_ARGS} -stats_granularity=1 -stats_id=${EXPERIMENT_ID} -req_nodes=${reqPeers}"
 echo ${scriptPath}/$cmd
 ${scriptPath}/${cmd}

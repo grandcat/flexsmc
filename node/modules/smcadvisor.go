@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/grandcat/flexsmc/benchmark/statistics"
 	proto "github.com/grandcat/flexsmc/proto"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	"github.com/grandcat/flexsmc/smc"
@@ -52,7 +53,9 @@ func (s *SMCAdvisor) BlockingSpawn() {
 		}
 		time.Sleep(time.Millisecond * interJobWaitMS)
 	}
-
+	// GW probably disconnected, so make all statistics available to the user
+	// for debugging.
+	statistics.GracefulFlush()
 }
 
 func (s *SMCAdvisor) SpawnBridge() error {
@@ -110,9 +113,20 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 				break
 			}
 		}
-		// Trigger state machine in SMC backend and send generated response.
+		// Special Debug phase
+		// It contains settings / parameter to be set on the current host PC.
+		// For security reasons, the peer executes commands only if the debug mode
+		// is enabled via the OS ENV. Otherwise, the packet is ignored.
+		if dbg := in.GetDebug(); dbg != nil {
+			smc.ProcessDebugPhase(dbg)
+		}
+		tStart := statistics.StartTrack()
+
+		// Send SMC command down to responsible backend.
 		var resp *pbJob.CmdResult
 		resp, moreCmds = smcSess.NextCmd(in)
+
+		statistics.G(2).End(in.Payload, tStart)
 		// Send back response
 		glog.V(3).Infof("Send->: suspect more? %v", moreCmds)
 		stream.Send(resp)

@@ -8,6 +8,8 @@ import (
 
 	"context"
 
+	"fmt"
+
 	"github.com/grandcat/flexsmc/benchmark/statistics"
 	"github.com/grandcat/flexsmc/directory"
 	"github.com/grandcat/flexsmc/node"
@@ -94,6 +96,23 @@ func (tn *testNode) awaitPeers(timeout time.Duration, reqNumber int32) error {
 	return jCtx.Err()
 }
 
+func (tn *testNode) applyConfigToOnlinePeers(expID string) error {
+	jCtx, jCancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer jCancel()
+
+	taskOption := map[string]*pbJob.Option{
+		"b.upExpID": &pbJob.Option{&pbJob.Option_Str{expID}},
+	}
+	task := &pbJob.SMCTask{
+		Set:        "DBG_CONFIG_PEERS",
+		Aggregator: pbJob.Aggregator_DBG_PINGPONG,
+		Options:    taskOption,
+	}
+
+	_, err := tn.orch.Request(jCtx, task)
+	return err
+}
+
 func frescoPing(b *testing.B, tn *testNode, task *pbJob.SMCTask, timeout time.Duration) {
 	jCtx, jCancel := context.WithTimeout(context.Background(), timeout)
 
@@ -138,14 +157,23 @@ func BenchmarkFrescoE2ESimple(b *testing.B) {
 	}
 	// Run bench.
 	benchmarks := []struct {
-		name string
-		task *pbJob.SMCTask
+		expName string
+		task    *pbJob.SMCTask
 	}{
 		{"PingPong", &pbJob.SMCTask{Set: "bench", Aggregator: pbJob.Aggregator_DBG_PINGPONG, Options: taskOption}},
 		{"SingleSum", &pbJob.SMCTask{Set: "benchgroup2", Aggregator: pbJob.Aggregator_SUM, Options: taskOption}},
 	}
 	for _, bm := range benchmarks {
-		b.Run(bm.name, func(b *testing.B) {
+		// TODO: generate various experiments per test (e.g. trottle CPU, network latency, etc.)
+		expID := fmt.Sprintf("%s_peers_%d", bm.expName, *reqNumPeers)
+		statistics.UpdateSetID(expID)
+		err := server.applyConfigToOnlinePeers(expID)
+		if err != nil {
+			b.Error("Could not apply new config to all peers:", err)
+		}
+
+		// TODO: run bench for each experiment.
+		b.Run(expID, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				frescoPing(b, server, bm.task, time.Second*7)
 				b.Logf("Iter %d", i)
