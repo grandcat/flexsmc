@@ -32,6 +32,7 @@ enum Aggregator {
     STD_DEVIATION   = 3;
 
     DBG_PINGPONG    = 1000;
+    DBG_SET_CONFIG  = 1001;
 }
 
 message Option {
@@ -76,7 +77,9 @@ message SessionPhase {
 }
 
 message DebugPhase {
-    int32 ping = 1;
+    int32 ping                  = 1;
+    // options configures the peers' environment. Otherwise, it is empty.
+    map<string, Option> options = 2;
 }
 
 // Envelopes to send and receive jobs with some context.
