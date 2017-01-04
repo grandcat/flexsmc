@@ -5,11 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"reflect"
 	"regexp"
 	"runtime"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -23,10 +23,11 @@ var timeLogger *timeLog
 type timeLog struct {
 	fileName string
 	writer   *bufio.Writer
-	logger   *log.Logger
 
-	setPrefix   string //< filled via flags
-	granularity Level  //< filled via flags by default
+	setID       string
+	granularity Level //< filled via flags by default
+
+	mu sync.Mutex
 }
 
 func (tl *timeLog) createLog(filePrefix string) {
@@ -37,14 +38,27 @@ func (tl *timeLog) createLog(filePrefix string) {
 		panic("Could not open file for writing.")
 	}
 	// Prepare buffered writer.
+	tl.mu.Lock()
 	tl.writer = bufio.NewWriter(f)
-	tl.logger = log.New(tl.writer, "", 0)
+	tl.mu.Unlock()
+}
+
+func (tl *timeLog) updateSetID(s string) {
+	tl.mu.Lock()
+	tl.setID = s
+	tl.mu.Unlock()
 }
 
 // output forms a CSV entry with all items separated by a commata, and sends
 // it to the writer.
 func (tl *timeLog) output(id, funcName string, d time.Duration, args ...string) {
-	tl.writer.WriteString(tl.setPrefix)
+	// Normally, the whole function should be protected due to the writer.
+	// In this case, the writer object is set only on initialization. Further, we
+	// assume there are no concurrent outputs.
+	// So, it should be safe to do so.
+	tl.mu.Lock()
+	tl.writer.WriteString(tl.setID)
+	tl.mu.Unlock()
 	tl.writer.WriteByte(',')
 	tl.writer.WriteString(id)
 	tl.writer.WriteByte(',')
@@ -58,10 +72,6 @@ func (tl *timeLog) output(id, funcName string, d time.Duration, args ...string) 
 	tl.writer.WriteByte('\n')
 }
 
-func (tl *timeLog) printf(format string, args ...interface{}) {
-	tl.logger.Printf(format, args)
-}
-
 func (tl *timeLog) flush() {
 	tl.writer.Flush()
 }
@@ -69,9 +79,9 @@ func (tl *timeLog) flush() {
 func init() {
 	timeLogger = new(timeLog)
 
-	flag.StringVar(&timeLogger.setPrefix, "stats_id", "", "Set the prefix identifier to distinguish different test configurations")
+	flag.StringVar(&timeLogger.setID, "stats_id", "defaultSet", "Set the identifier to distinguish different experiments. Overwriteable during runtime")
 	flag.Var(&timeLogger.granularity, "stats_granularity", "granularity")
-	// flag.Parse()
+
 	t := time.Now()
 	filePrefix := fmt.Sprintf("stats.log.%04d%02d%02d-%02d%02d%02d.tmp",
 		t.Year(),
@@ -122,6 +132,10 @@ func (l *Level) Set(val string) error {
 // String is part of the flag.Value interface.
 func (l *Level) String() string {
 	return strconv.FormatInt(int64(*l), 10)
+}
+
+func UpdateSetID(s string) {
+	timeLogger.updateSetID(s)
 }
 
 type Track bool
