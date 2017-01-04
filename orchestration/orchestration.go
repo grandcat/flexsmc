@@ -64,7 +64,11 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 		glog.V(2).Infof("PREV RESULT BEFORE RESUBMIT: %v [Error: %v]", res, err)
 		// Let's assume a peer dropped its connection. So just rerun the job pipeline
 		// should suffice in most cases. Let's try :)
-		newJobInstr, _ := fo.prePipe.Process(task)
+		newJobInstr, err := fo.prePipe.Process(task)
+		if err != nil {
+			glog.V(1).Infof("Orchestration Resubmit: preprocess pipeline failed: %v", err.Error())
+			return nil, err
+		}
 		// If participants differ in both instruction sets, our assumption is correct and
 		// we can continue. Otherwise, something else causes a problem. Then, it is not
 		// useful resubmitting the job as it will fail again immediately.
@@ -73,7 +77,7 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 			glog.V(3).Infof("New parties: %v", newJobInstr.Participants)
 			err = fo.worker.RescheduleOpenJob(ctx, job, *newJobInstr, worker.HandleErrFlags(0))
 			if err != nil {
-				glog.V(1).Infof("Orchestration: job resubmit failed: %v", err.Error())
+				glog.V(1).Infof("Orchestration Resubmit: job failed: %v", err.Error())
 				return nil, err
 			}
 			res, err = fo.postAggr.Process(ctx, job)
@@ -88,5 +92,7 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 			glog.V(2).Infof("Resubmit aborted (no change in topology,task): %v", aerr)
 		}
 	}
+
+	glog.Infof(">>> Orch: Request Result: %v [Err: %v] \n", res, err)
 	return res, err
 }
