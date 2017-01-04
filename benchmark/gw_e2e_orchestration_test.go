@@ -24,6 +24,7 @@ var (
 )
 
 var (
+	benchID     = flag.String("bench_id", "0", "ID for current benchmark. GW only")
 	reqNumPeers = flag.Int("req_nodes", 0, "Required number of participating peers. 0 means any number of currently online peers.")
 )
 
@@ -96,21 +97,25 @@ func (tn *testNode) awaitPeers(timeout time.Duration, reqNumber int32) error {
 	return jCtx.Err()
 }
 
-func (tn *testNode) applyConfigToOnlinePeers(expID string) error {
+func (tn *testNode) sendDebugConfig(key, val, info string) error {
 	jCtx, jCancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer jCancel()
 
 	taskOption := map[string]*pbJob.Option{
-		"b.upExpID": &pbJob.Option{&pbJob.Option_Str{expID}},
+		key: &pbJob.Option{&pbJob.Option_Str{val}},
 	}
 	task := &pbJob.SMCTask{
-		Set:        "DBG_CONFIG_PEERS",
+		Set:        info,
 		Aggregator: pbJob.Aggregator_DBG_PINGPONG,
 		Options:    taskOption,
 	}
 
 	_, err := tn.orch.Request(jCtx, task)
 	return err
+}
+
+func (tn *testNode) applyConfigToOnlinePeers(expID string) error {
+	return tn.sendDebugConfig("b.upExpID", expID, "DBG_CONFIG_PEERS")
 }
 
 func frescoPing(b *testing.B, tn *testNode, task *pbJob.SMCTask, timeout time.Duration) {
@@ -165,7 +170,7 @@ func BenchmarkFrescoE2ESimple(b *testing.B) {
 	}
 	for _, bm := range benchmarks {
 		// TODO: generate various experiments per test (e.g. trottle CPU, network latency, etc.)
-		expID := fmt.Sprintf("%s_peers_%d", bm.expName, *reqNumPeers)
+		expID := fmt.Sprintf("bid_%s_job_%s_peers_%d", *benchID, bm.expName, *reqNumPeers)
 		statistics.UpdateSetID(expID)
 		err := server.applyConfigToOnlinePeers(expID)
 		if err != nil {

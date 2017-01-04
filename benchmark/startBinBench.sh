@@ -15,6 +15,7 @@ logLev="${DEBUG_LEVEL:-1}"
 
 # Test and benchmark parameters
 reqPeers="${1:-0}"
+benchID="${2:-0}"
 benchTime="${BENCH_TIME:-10s}"
 
 # Assembly options passed to flexsmc executable.
@@ -29,11 +30,6 @@ if [[ ! -z "${eth// }" ]]; then
 	echo "Custom inteface: ${eth// }"
 fi
 
-# Construct experiment ID
-EXPERIMENT_ID="peers_${reqPeers}_cores_0_freq_0_netlat_0"
-
-echo "Args: ${FLEX_ARGS} ${*}"
-
-cmd="binBench -test.bench=. -test.v=1 -test.benchtime ${benchTime} ${FLEX_ARGS} -stats_granularity=1 -stats_id=${EXPERIMENT_ID} -req_nodes=${reqPeers}"
+cmd="binBench -test.bench=. -test.v=1 -test.benchtime ${benchTime} ${FLEX_ARGS} -bench_id=${benchID} -stats_granularity=1 -req_nodes=${reqPeers}"
 echo ${scriptPath}/$cmd
 ${scriptPath}/${cmd}
