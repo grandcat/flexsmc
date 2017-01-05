@@ -10,6 +10,7 @@ import (
 
 	"fmt"
 
+	"github.com/grandcat/flexsmc/benchmark/debughelper"
 	"github.com/grandcat/flexsmc/benchmark/statistics"
 	"github.com/grandcat/flexsmc/directory"
 	"github.com/grandcat/flexsmc/node"
@@ -98,7 +99,7 @@ func (tn *testNode) awaitPeers(timeout time.Duration, reqNumber int32) error {
 }
 
 func (tn *testNode) sendDebugConfig(key, val, info string) error {
-	jCtx, jCancel := context.WithTimeout(context.Background(), time.Second*10)
+	jCtx, jCancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer jCancel()
 
 	taskOption := map[string]*pbJob.Option{
@@ -118,7 +119,11 @@ func (tn *testNode) applyConfigToOnlinePeers(expID string) error {
 	return tn.sendDebugConfig("b.upExpID", expID, "DBG_CONFIG_PEERS")
 }
 
-func frescoPing(b *testing.B, tn *testNode, task *pbJob.SMCTask, timeout time.Duration) {
+func (tn *testNode) triggerUploadScript() error {
+	return tn.sendDebugConfig("b.upload", "1", "DBG_CONFIG_PEERS")
+}
+
+func frescoPing(b *testing.B, tn *testNode, task *pbJob.SMCTask, timeout time.Duration) (string, error) {
 	jCtx, jCancel := context.WithTimeout(context.Background(), timeout)
 
 	// b.ResetTimer()
@@ -132,15 +137,8 @@ func frescoPing(b *testing.B, tn *testNode, task *pbJob.SMCTask, timeout time.Du
 		resStr = strconv.FormatFloat(res.Res, 'f', 2, 64)
 	}
 	statistics.G(0).End(res, start, task.Aggregator.String(), resStr, resErr)
-	// b.StopTimer()
-	if err != nil {
-		b.Logf("Request failed: %v", err)
-	}
-	if res != nil {
-		b.Logf("SMC result: %f", res.Res)
-	}
-
 	jCancel()
+	return resStr, err
 }
 
 func BenchmarkFrescoE2ESimple(b *testing.B) {
@@ -172,7 +170,8 @@ func BenchmarkFrescoE2ESimple(b *testing.B) {
 		// TODO: generate various experiments per test (e.g. trottle CPU, network latency, etc.)
 		expID := fmt.Sprintf("bid_%s_job_%s_peers_%d", *benchID, bm.expName, *reqNumPeers)
 		statistics.UpdateSetID(expID)
-		err := server.applyConfigToOnlinePeers(expID)
+		var err error
+		err = server.applyConfigToOnlinePeers(expID)
 		if err != nil {
 			b.Error("Could not apply new config to all peers:", err)
 		}
@@ -180,8 +179,8 @@ func BenchmarkFrescoE2ESimple(b *testing.B) {
 		// TODO: run bench for each experiment.
 		b.Run(expID, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				frescoPing(b, server, bm.task, time.Second*7)
-				b.Logf("Iter %d", i)
+				res, err := frescoPing(b, server, bm.task, time.Second*7)
+				b.Logf("Iter %d: Res: %s [Err: %v]", i, res, err)
 
 				// Give nodes some ms to recover for next job round.
 				// b.StopTimer()
@@ -190,7 +189,13 @@ func BenchmarkFrescoE2ESimple(b *testing.B) {
 				// b.StartTimer()
 			}
 		})
-		// Write buffered statistics to disk if necessary.
-		statistics.GracefulFlush()
+		// Write buffered statistics to disk and upload statistics.
+		// - Local
+		debughelper.UploadBenchmarks()
+		// - Remote
+		err = server.triggerUploadScript()
+		if err != nil {
+			b.Error("Statistics upload failed:", err)
+		}
 	}
 }

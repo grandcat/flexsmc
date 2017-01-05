@@ -1,27 +1,14 @@
-package smc
+package debughelper
 
 import (
 	"context"
-	"os"
-
 	"fmt"
-
 	"os/exec"
 
 	"github.com/golang/glog"
 	"github.com/grandcat/flexsmc/benchmark/statistics"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 )
-
-// debugModeEnabled controls the evaluation of debug packets' isntructions.
-// It is disabled by default to prevent abusing the peers.
-var debugModeEnabled = false
-
-func init() {
-	if os.Getenv("FLEX_DEBUG_MODE") == "1" {
-		debugModeEnabled = true
-	}
-}
 
 func ProcessDebugPhase(in *pbJob.DebugPhase) {
 	dbgOpts := in.Options
@@ -34,18 +21,19 @@ func ProcessDebugPhase(in *pbJob.DebugPhase) {
 		updateSet := opt.GetStr()
 		glog.Infof(">>>>>>> DBG: %v [%b]", updateSet, debugModeEnabled)
 		statistics.UpdateSetID(updateSet)
-		// Upload results to be safe
-		UploadBenchStatistics()
 	}
+	if _, ok := dbgOpts["b.upload"]; ok {
+		glog.Info(">>>>>>> DBG Upload")
+		UploadBenchmarks()
+	}
+
 }
 
-func UploadBenchStatistics() {
-	// Safe to disc before uploading to get really all statistics.
+func UploadBenchmarks() {
+	// There might be some lines buffered in memory. Fetch them for complete dataset.
 	statistics.GracefulFlush()
 
 	fmt.Println(">>>>>>>> DEBUG: uploading result to kaunas (executing script)")
 	cmd := exec.CommandContext(context.Background(), "/bin/bash", "/tmp/uploadStats.sh")
 	cmd.Start()
-	// err := cmd.Wait()
-	// fmt.Println(">>>>>>>> DEBUG: Execution result:", err)
 }

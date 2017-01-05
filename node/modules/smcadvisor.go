@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/grandcat/flexsmc/benchmark/debughelper"
 	"github.com/grandcat/flexsmc/benchmark/statistics"
 	proto "github.com/grandcat/flexsmc/proto"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
@@ -118,7 +119,7 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 		// For security reasons, the peer executes commands only if the debug mode
 		// is enabled via the OS ENV. Otherwise, the packet is ignored.
 		if dbg := in.GetDebug(); dbg != nil {
-			smc.ProcessDebugPhase(dbg)
+			debughelper.ProcessDebugPhase(dbg)
 		}
 		tStart := statistics.StartTrack()
 
