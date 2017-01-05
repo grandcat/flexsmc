@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
+	"github.com/grandcat/flexsmc/benchmark/statistics"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 	proto "github.com/grandcat/flexsmc/proto/smc"
 	"golang.org/x/net/context"
@@ -139,12 +140,14 @@ func (s *frescoSession) NextCmd(in *pbJob.SMCCmd) (out *pbJob.CmdResult, more bo
 	glog.V(3).Infof("In:  session->%v, ID->%d", in.SessionID, in.SmcPeerID)
 
 	// Forward command to Fresco and evaluate result to manage active chat.
+	tStart := statistics.StartTrack()
 	out, err := s.client.NextCmd(s.ctx, in)
 	if err != nil {
 		out, more = reportError(err)
 		s.state = requestTearDown
 		return
 	}
+	statistics.G(2).End(in.Payload, tStart, out.Status.String())
 
 	switch {
 	case pbJob.CmdResult_SUCCESS_DONE == out.Status:

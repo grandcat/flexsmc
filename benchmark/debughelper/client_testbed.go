@@ -21,12 +21,19 @@ func ProcessDebugPhase(in *pbJob.DebugPhase) {
 		updateSet := opt.GetStr()
 		glog.Infof(">>>>>>> DBG: %v [%b]", updateSet, debugModeEnabled)
 		statistics.UpdateSetID(updateSet)
+		// Enforce OS configuration.
+		ConfigOS()
 	}
 	if _, ok := dbgOpts["b.upload"]; ok {
 		glog.Info(">>>>>>> DBG Upload")
 		UploadBenchmarks()
 	}
 
+}
+
+func ConfigOS() {
+	cmd := exec.CommandContext(context.Background(), "/bin/bash", "/tmp/setOSParams.sh")
+	cmd.Start()
 }
 
 func UploadBenchmarks() {
