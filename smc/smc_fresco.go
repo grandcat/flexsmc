@@ -177,6 +177,7 @@ func (s *frescoSession) TearDown() {
 
 func (s *frescoSession) condFreeResources() {
 	if s.state == requestTearDown {
+		s.state = stopped
 		// TODO: find better solution
 		if s.client != nil && s.id != "" {
 			s.client.TearDown(context.Background(), &proto.SessionCtx{SessionID: s.id})
@@ -184,7 +185,6 @@ func (s *frescoSession) condFreeResources() {
 		}
 		s.conn.Close()
 		// Invalidate session and release worker resource.
-		s.state = stopped
 		s.done <- struct{}{}
 	}
 }
