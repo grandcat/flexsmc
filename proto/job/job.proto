@@ -78,6 +78,7 @@ message SessionPhase {
 
 message DebugPhase {
     int32 ping                  = 1;
+    bool morePhases             = 3;
     // options configures the peers' environment. Otherwise, it is empty.
     map<string, Option> options = 2;
 }
