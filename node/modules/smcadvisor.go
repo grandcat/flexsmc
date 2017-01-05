@@ -102,6 +102,14 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 			break
 		}
 		glog.V(3).Infof("->Rcv: %v", in)
+		// Check for special Debug Phase
+		// It contains settings / parameter to be set on the current host PC.
+		// For security reasons, the peer executes commands only if the debug mode
+		// is enabled via the OS ENV. Otherwise, the packet is ignored.
+		if dbg := in.GetDebug(); dbg != nil {
+			debughelper.ProcessDebugPhase(dbg)
+		}
+
 		// Initialize session on first interaction.
 		if cntCmds == 0 {
 			if err := smcSess.Init(stream.Context(), in.SessionID); err != nil {
@@ -114,13 +122,7 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 				break
 			}
 		}
-		// Special Debug phase
-		// It contains settings / parameter to be set on the current host PC.
-		// For security reasons, the peer executes commands only if the debug mode
-		// is enabled via the OS ENV. Otherwise, the packet is ignored.
-		if dbg := in.GetDebug(); dbg != nil {
-			debughelper.ProcessDebugPhase(dbg)
-		}
+
 		tStart := statistics.StartTrack()
 
 		// Send SMC command down to responsible backend.
