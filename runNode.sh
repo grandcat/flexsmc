@@ -24,7 +24,7 @@ export FLEX_DEBUG_MODE
 ID="${FLEX_ID:-1}"
 gwRole="${FLEX_ROLE_GW:-0}"
 eth="${FLEX_IFACE:-}"
-logLev="${DEBUG_LEVEL:-1}"
+logLev="${FLEX_LOG_LEVEL:-1}"
 # Sensor node specific settings.
 smcSocket="${FLEX_SMCSOCK:-unix:///tmp/grpc-flexsmc1.sock}"
 enPairing=1
