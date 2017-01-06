@@ -2,6 +2,7 @@ package orchestration
 
 import (
 	"github.com/golang/glog"
+	"github.com/grandcat/flexsmc/benchmark/debughelper"
 	"github.com/grandcat/flexsmc/directory"
 	"github.com/grandcat/flexsmc/orchestration/aggregation"
 	"github.com/grandcat/flexsmc/orchestration/pipeline"
@@ -25,7 +26,7 @@ type FifoOrchestration struct {
 func NewFIFOOrchestration(reg *directory.Registry) Orchestration {
 	// Init preprocessing pipeline for production
 	pipe0 := &pipeline.GroupMap{Reg: reg}
-	pipe1 := &pipeline.OnlineFilter{Reg: reg}
+	pipe1 := &pipeline.OnlineFilter{Reg: reg, Debug: debughelper.DebugModeEnabled}
 	pipe2 := &pipeline.ContinousChanID{}
 	pipe3 := &pipeline.PhaseBuilder{}
 	processInput := pipeline.NewPipeline(pipe0, pipe1, pipe2, pipe3)
