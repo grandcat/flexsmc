@@ -21,7 +21,8 @@ fi
 export FLEX_DEBUG_MODE
 
 # Set defaults or replace them by configuration.
-ID="${FLEX_ID:-1}"
+tmpID=${FLEX_ID:-1}
+ID="$(printf "%02d" $tmpID)"  # Zero pad for ascending sorting of peers.
 gwRole="${FLEX_ROLE_GW:-0}"
 eth="${FLEX_IFACE:-}"
 logLev="${FLEX_LOG_LEVEL:-1}"
