@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -22,7 +23,8 @@ var timeLogger *timeLog
 
 type timeLog struct {
 	fileName string
-	writer   *bufio.Writer
+	f        *os.File
+	wr       *bufio.Writer
 
 	setID       string
 	granularity Level //< filled via flags by default
@@ -30,17 +32,37 @@ type timeLog struct {
 	mu sync.Mutex
 }
 
-func (tl *timeLog) createLog(filePrefix string) {
+func (tl *timeLog) newLogfile(filePrefix string) {
 	// Prepare unique output file in temp folder.
-	f, err := ioutil.TempFile("", filePrefix)
-	// f, err := os.OpenFile(filePrefix, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0664)
+	f, err := ioutil.TempFile("", filePrefix+datePrefix())
 	if err != nil {
 		panic("Could not open file for writing.")
 	}
-	// Prepare buffered writer.
+	// Prepare or switch buffered writer.
 	tl.mu.Lock()
-	tl.writer = bufio.NewWriter(f)
+	if tl.wr == nil {
+		tl.f = f
+		tl.wr = bufio.NewWriter(f)
+	} else {
+		tl.wr.Flush()
+		tl.wr.Reset(f)
+
+		tl.f.Close()
+		tl.f = f
+	}
 	tl.mu.Unlock()
+}
+
+func datePrefix() string {
+	t := time.Now()
+	return fmt.Sprintf("stats.log.%04d%02d%02d-%02d%02d%02d.tmp",
+		t.Year(),
+		t.Month(),
+		t.Day(),
+		t.Hour(),
+		t.Minute(),
+		t.Second(),
+	)
 }
 
 func (tl *timeLog) updateSetID(s string) {
@@ -57,23 +79,23 @@ func (tl *timeLog) output(id, funcName string, d time.Duration, args ...string) 
 	// assume there are no concurrent outputs.
 	// So, it should be safe to do so.
 	tl.mu.Lock()
-	tl.writer.WriteString(tl.setID)
+	tl.wr.WriteString(tl.setID)
 	tl.mu.Unlock()
-	tl.writer.WriteByte(',')
-	tl.writer.WriteString(id)
-	tl.writer.WriteByte(',')
-	tl.writer.WriteString(funcName)
-	tl.writer.WriteByte(',')
-	tl.writer.WriteString(strconv.FormatInt(d.Nanoseconds(), 10))
+	tl.wr.WriteByte(',')
+	tl.wr.WriteString(id)
+	tl.wr.WriteByte(',')
+	tl.wr.WriteString(funcName)
+	tl.wr.WriteByte(',')
+	tl.wr.WriteString(strconv.FormatInt(d.Nanoseconds(), 10))
 	for _, a := range args {
-		tl.writer.WriteByte(',')
-		tl.writer.WriteString(a)
+		tl.wr.WriteByte(',')
+		tl.wr.WriteString(a)
 	}
-	tl.writer.WriteByte('\n')
+	tl.wr.WriteByte('\n')
 }
 
 func (tl *timeLog) flush() {
-	tl.writer.Flush()
+	tl.wr.Flush()
 }
 
 func init() {
@@ -82,24 +104,7 @@ func init() {
 	flag.StringVar(&timeLogger.setID, "stats_id", "defaultSet", "Set the identifier to distinguish different experiments. Overwriteable during runtime")
 	flag.Var(&timeLogger.granularity, "stats_granularity", "granularity")
 
-	t := time.Now()
-	filePrefix := fmt.Sprintf("stats.log.%04d%02d%02d-%02d%02d%02d.tmp",
-		t.Year(),
-		t.Month(),
-		t.Day(),
-		t.Hour(),
-		t.Minute(),
-		t.Second(),
-	)
-	timeLogger.createLog(filePrefix)
-}
-
-func SetGranularity(lev Level) {
-	timeLogger.granularity.set(lev)
-}
-
-func GracefulFlush() {
-	timeLogger.flush()
+	timeLogger.newLogfile("stats.log.")
 }
 
 type Level int32
@@ -132,10 +137,6 @@ func (l *Level) Set(val string) error {
 // String is part of the flag.Value interface.
 func (l *Level) String() string {
 	return strconv.FormatInt(int64(*l), 10)
-}
-
-func UpdateSetID(s string) {
-	timeLogger.updateSetID(s)
 }
 
 type Track bool
@@ -175,4 +176,20 @@ func (t Track) End(identifier interface{}, start time.Time, logArgs ...string) {
 		}
 		timeLogger.output(strID, funcName, elapsed, logArgs...)
 	}
+}
+
+func SwitchLog(prefix string) {
+	timeLogger.newLogfile(prefix)
+}
+
+func UpdateSetID(s string) {
+	timeLogger.updateSetID(s)
+}
+
+func SetGranularity(lev Level) {
+	timeLogger.granularity.set(lev)
+}
+
+func GracefulFlush() {
+	timeLogger.flush()
 }
