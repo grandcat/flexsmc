@@ -12,14 +12,14 @@ import (
 
 func ProcessDebugPhase(in *pbJob.DebugPhase) {
 	dbgOpts := in.Options
-	if debugModeEnabled == false || dbgOpts == nil {
+	if DebugModeEnabled == false || dbgOpts == nil {
 		return
 	}
 
 	// Configure local environment for benchmark.
 	if opt, ok := dbgOpts["b.upExpID"]; ok {
 		updateSet := opt.GetStr()
-		glog.Infof(">>>>>>> DBG: %v [%b]", updateSet, debugModeEnabled)
+		glog.Infof(">>>>>>> DBG: %v [%b]", updateSet, DebugModeEnabled)
 		statistics.UpdateSetID(updateSet)
 		// Enforce OS configuration.
 		ConfigOS()
