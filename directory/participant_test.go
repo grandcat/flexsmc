@@ -33,7 +33,7 @@ func TestSortMapByPeerID(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		if got := SortMapByPeerID(tt.args.m); !reflect.DeepEqual(got, tt.want) {
+		if got := ParticipantsToList(tt.args.m).SortbyPeerID(); !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("%q. SortMapByPeerID() = %v, want %v", tt.name, got, tt.want)
 		}
 	}
