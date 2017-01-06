@@ -5,6 +5,7 @@ import (
 
 	"math"
 
+	"github.com/golang/glog"
 	"github.com/grandcat/flexsmc/directory"
 	"github.com/grandcat/flexsmc/orchestration/worker"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
@@ -54,6 +55,13 @@ func (o *OnlineFilter) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 	if minParties > int32(len(inOut.Participants)) {
 		return fmt.Errorf("OnlineFilter: requested number of peers %d > %d peers online",
 			minParties, len(inOut.Participants))
+	}
+
+	if glog.V(3) {
+		glog.Info("Filtered participants: ")
+		for _, p := range inOut.Participants {
+			glog.Info(p.ID, " ")
+		}
 	}
 
 	return nil
