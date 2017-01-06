@@ -10,12 +10,13 @@ import (
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 )
 
-func ProcessDebugPhase(in *pbJob.DebugPhase) {
+func ProcessDebugPhase(in *pbJob.DebugPhase) (resp *pbJob.CmdResult, moreCmds bool) {
 	dbgOpts := in.Options
 	if DebugModeEnabled == false || dbgOpts == nil {
 		return
 	}
 
+	skipSMC := false
 	// Configure local environment for benchmark.
 	if opt, ok := dbgOpts["b.upExpID"]; ok {
 		updateSet := opt.GetStr()
@@ -23,17 +24,37 @@ func ProcessDebugPhase(in *pbJob.DebugPhase) {
 		statistics.UpdateSetID(updateSet)
 		// Enforce OS configuration.
 		ConfigOS()
+
+		skipSMC = true
 	}
 	if _, ok := dbgOpts["b.upload"]; ok {
 		glog.Info(">>>>>>> DBG Upload")
 		UploadBenchmarks()
+
+		skipSMC = true
+	}
+	if _, ok := dbgOpts["skipSMCBackend"]; ok {
+		skipSMC = true
 	}
 
+	// Generate simple response. This tell the SMC loop we want to leave and
+	// there are no further commands to the SMC backend.
+	if skipSMC {
+		glog.Info(">>>>>>> DBG SkipSMC")
+		resp = &pbJob.CmdResult{
+			Status: pbJob.CmdResult_SUCCESS_DONE,
+			Msg:    "Debug: skipSMC",
+		}
+		moreCmds = in.MorePhases
+	}
+	return
 }
 
 func ConfigOS() {
 	cmd := exec.CommandContext(context.Background(), "/bin/bash", "/tmp/setOSParams.sh")
 	cmd.Start()
+	// Need to wait in order to release any resources.
+	cmd.Wait()
 }
 
 func UploadBenchmarks() {
@@ -43,4 +64,6 @@ func UploadBenchmarks() {
 	fmt.Println(">>>>>>>> DEBUG: uploading result to kaunas (executing script)")
 	cmd := exec.CommandContext(context.Background(), "/bin/bash", "/tmp/uploadStats.sh")
 	cmd.Start()
+	// Need to wait in order to release any resources.
+	cmd.Wait()
 }

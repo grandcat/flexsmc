@@ -92,6 +92,8 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 	var cntCmds uint
 
 	for moreCmds {
+		var resp *pbJob.CmdResult
+
 		in, err := stream.Recv()
 		if err == io.EOF {
 			glog.V(2).Info("->Rcv: GW EOF")
@@ -107,7 +109,12 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 		// For security reasons, the peer executes commands only if the debug mode
 		// is enabled via the OS ENV. Otherwise, the packet is ignored.
 		if dbg := in.GetDebug(); dbg != nil {
-			debughelper.ProcessDebugPhase(dbg)
+			dbgResp, allowMore := debughelper.ProcessDebugPhase(dbg)
+			if dbgResp != nil {
+				stream.Send(dbgResp)
+				moreCmds = allowMore
+				continue
+			}
 		}
 
 		// Initialize session on first interaction.
@@ -126,7 +133,6 @@ func (s *SMCAdvisor) bridgeStreamToSMC(stream proto.Gateway_AwaitSMCRoundClient,
 		tStart := statistics.StartTrack()
 
 		// Send SMC command down to responsible backend.
-		var resp *pbJob.CmdResult
 		resp, moreCmds = smcSess.NextCmd(in)
 
 		statistics.G(2).End(in.Payload, tStart)
