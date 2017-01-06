@@ -9,7 +9,8 @@ else
 fi
 
 # Set defaults for node configuration.
-ID="${FLEX_ID:-1}"
+tmpID=${FLEX_ID:-1}
+ID="$(printf "%02d" $tmpID)"  # Zero pad for ascending sorting of peers.
 eth="${FLEX_IFACE:-}"
 logLev="${DEBUG_LEVEL:-1}"
 

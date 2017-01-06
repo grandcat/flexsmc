@@ -15,10 +15,10 @@ import (
 
 var (
 	isGateway = flag.Bool("gateway", false, "Set to true to run this node as a gateway")
-	certFile  = flag.String("cert_file", "certs/cert_1.pem", "TLS cert file")
-	keyFile   = flag.String("key_file", "certs/key_1.pem", "TLS key file")
+	certFile  = flag.String("cert_file", "certs/cert_01.pem", "TLS cert file")
+	keyFile   = flag.String("key_file", "certs/key_01.pem", "TLS key file")
 	iface     = flag.String("interface", "", "Network interface to use for discovery, e.g. enp3s0")
-	gwID      = flag.String("gw_id", "n1.flexsmc.local", "Gateway mDNS identifer (will be obsolete in future)")
+	gwID      = flag.String("gw_id", "n01.flexsmc.local", "Gateway mDNS identifer (will be obsolete in future)")
 	enPairing = flag.Bool("pairing", false, "Enable or disable pairing phase")
 	peerInfo  = flag.String("peerinfo", "123", "Additional peer information supplied during pairing")
 
