@@ -47,6 +47,9 @@ type testNode struct {
 }
 
 func newTestNode() *testNode {
+	// Enable debug mode for statistics and custom task settings.
+	debughelper.EnableDebugMode()
+
 	registry := directory.NewRegistry()
 	opts := node.GWOptions{
 		Options: node.Options{
@@ -119,7 +122,7 @@ func (tn *testNode) applyConfigToOnlinePeers(expID string) error {
 	return tn.sendDebugConfig("b.upExpID", expID, "DBG_CONFIG_PEERS")
 }
 
-func (tn *testNode) triggerUploadScript() error {
+func (tn *testNode) triggerUploadBenchmark() error {
 	return tn.sendDebugConfig("b.upload", "1", "DBG_CONFIG_PEERS")
 }
 
@@ -147,7 +150,7 @@ func BenchmarkFrescoE2ESimple(b *testing.B) {
 	if *reqNumPeers != 0 {
 		n := int32(*reqNumPeers)
 		b.Logf("Waiting for %d nodes to become ready...", n)
-		err := server.awaitPeers(time.Second*40, n)
+		err := server.awaitPeers(time.Second*60, n)
 		if err != nil {
 			b.Fatal("Not enough peers:", err.Error())
 			b.FailNow()
@@ -157,14 +160,17 @@ func BenchmarkFrescoE2ESimple(b *testing.B) {
 		// Configure taskOption to maintain required number of peers constantly.
 		taskOption["minNumPeers"] = &pbJob.Option{&pbJob.Option_Dec{n}}
 		taskOption["maxNumPeers"] = &pbJob.Option{&pbJob.Option_Dec{n}}
+
+		taskOption["sortPeerIDs"] = &pbJob.Option{&pbJob.Option_Dec{1}}
 	}
+
 	// Run bench.
 	benchmarks := []struct {
 		expName string
 		task    *pbJob.SMCTask
 	}{
-		{"PingPong", &pbJob.SMCTask{Set: "bench", Aggregator: pbJob.Aggregator_DBG_PINGPONG, Options: taskOption}},
-		{"SingleSum", &pbJob.SMCTask{Set: "benchgroup2", Aggregator: pbJob.Aggregator_SUM, Options: taskOption}},
+		{"Fres1PingPong", &pbJob.SMCTask{Set: "bench", Aggregator: pbJob.Aggregator_DBG_PINGPONG, Options: taskOption}},
+		// {"SingleSum", &pbJob.SMCTask{Set: "benchgroup2", Aggregator: pbJob.Aggregator_SUM, Options: taskOption}},
 	}
 	for _, bm := range benchmarks {
 		// TODO: generate various experiments per test (e.g. trottle CPU, network latency, etc.)
@@ -183,17 +189,15 @@ func BenchmarkFrescoE2ESimple(b *testing.B) {
 				b.Logf("Iter %d: Res: %s [Err: %v]", i, res, err)
 
 				// Give nodes some ms to recover for next job round.
-				// b.StopTimer()
 				statistics.GracefulFlush()
 				time.Sleep(time.Millisecond * 50)
-				// b.StartTimer()
 			}
 		})
 		// Write buffered statistics to disk and upload statistics.
 		// - Local
 		debughelper.UploadBenchmarks()
 		// - Remote
-		err = server.triggerUploadScript()
+		err = server.triggerUploadBenchmark()
 		if err != nil {
 			b.Error("Statistics upload failed:", err)
 		}
