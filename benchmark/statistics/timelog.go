@@ -55,7 +55,7 @@ func (tl *timeLog) newLogfile(filePrefix string) {
 
 func datePrefix() string {
 	t := time.Now()
-	return fmt.Sprintf("stats.log.%04d%02d%02d-%02d%02d%02d.tmp",
+	return fmt.Sprintf("%04d%02d%02d-%02d%02d%02d.tmp",
 		t.Year(),
 		t.Month(),
 		t.Day(),
