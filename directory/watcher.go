@@ -28,8 +28,10 @@ type stateChange struct {
 
 func newPeerWatcher() *peerWatcher {
 	w := &peerWatcher{
-		peersOn:  make(map[auth.PeerID]peerStatus),
-		notifies: make(chan stateChange), // cap = 0, blocking
+		peersOn: make(map[auth.PeerID]peerStatus),
+		// Choose big enough, so it does not become the bottleneck for
+		// new communication channels attaching to the GW.
+		notifies: make(chan stateChange, 32),
 	}
 
 	go w.watch()
