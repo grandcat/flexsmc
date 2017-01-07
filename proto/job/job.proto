@@ -26,13 +26,16 @@ enum DataOrigin {
 }
 
 enum Aggregator {
-    SUM             = 0;
-    AVG             = 1;
-    MEDIAN          = 2;
-    STD_DEVIATION   = 3;
+    SUM              = 0;
+    AVG              = 1;
+    MEDIAN           = 2;
+    STD_DEVIATION    = 3;
 
-    DBG_PINGPONG    = 1000;
-    DBG_SET_CONFIG  = 1001;
+    DBG_PINGPONG     = 1000;
+    DBG_PINGPONG_10  = 1001;
+    DBG_PINGPONG_100 = 1002;
+
+    DBG_SET_CONFIG   = 1024;
 }
 
 message Option {
