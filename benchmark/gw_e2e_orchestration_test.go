@@ -92,11 +92,10 @@ func (tn *testNode) awaitPeers(timeout time.Duration, reqNumber int32) error {
 	}
 
 	for jCtx.Err() == nil {
-		msg, err := tn.orch.Request(jCtx, task)
+		_, err := tn.orch.Request(jCtx, task)
 		if err == nil {
 			return nil
 		}
-		fmt.Println("Waiting: msg:", msg, "Err:", err)
 		time.Sleep(time.Second * 2)
 	}
 
@@ -143,7 +142,12 @@ func (tn *testNode) submitTaskAndWait(b *testing.B, task *pbJob.SMCTask, timeout
 	if err != nil {
 		resErr = err.Error()
 	} else {
-		resStr = strconv.FormatFloat(res.Res, 'f', 2, 64)
+		// Result can be empty if peers do not have any useful data
+		// beside the successful execution. E.g. for FlexSMC ping msgs.
+		// An end user usually receives a result.
+		if res != nil {
+			resStr = strconv.FormatFloat(res.Res, 'f', 2, 64)
+		}
 	}
 	statistics.G(0).End(res, start, task.Aggregator.String(), resStr, resErr)
 
@@ -240,12 +244,56 @@ func doBench(b *testing.B, task *pbJob.SMCTask, info string) {
 
 // Tasks to benchmark
 
-func BenchmarkE2EFresco1Ping(b *testing.B) {
+func BenchmarkE2EFrescoPing(b *testing.B) {
 	task := &pbJob.SMCTask{
 		Set:        "all",
 		Aggregator: pbJob.Aggregator_DBG_PINGPONG,
 	}
-	doBench(b, task, "1ping")
+
+	aggregators := []struct {
+		tSuffix string
+		ag      pbJob.Aggregator
+	}{
+		// {"01", pbJob.Aggregator_DBG_PINGPONG},
+		{"10", pbJob.Aggregator_DBG_PINGPONG_10},
+	}
+
+	for _, conf := range aggregators {
+		task.Aggregator = conf.ag
+		doBench(b, task, "fresPing"+conf.tSuffix)
+	}
+}
+
+// BenchmarkFlexPing
+// The destination peer echoes back the request as soon as it receives the
+// instruction without reaching down to the SMC backend.
+//
+// Test different sizes of phase concatenation.
+// More precise way to determine impact of short vs long tasks with
+// regard to communication overhead.
+func BenchmarkFlexPing(b *testing.B) {
+	task := &pbJob.SMCTask{
+		Set:        "all",
+		Aggregator: pbJob.Aggregator_DBG_PINGPONG,
+		Options: map[string]*pbJob.Option{
+
+			"skipSMCBackend": &pbJob.Option{&pbJob.Option_Dec{1}},
+		},
+	}
+
+	aggregators := []struct {
+		tSuffix string
+		ag      pbJob.Aggregator
+	}{
+		{"001", pbJob.Aggregator_DBG_PINGPONG},
+		{"010", pbJob.Aggregator_DBG_PINGPONG_10},
+		// {"100", pbJob.Aggregator_DBG_PINGPONG_100},
+	}
+
+	for _, conf := range aggregators {
+		task.Aggregator = conf.ag
+		doBench(b, task, "flexPing"+conf.tSuffix)
+	}
 }
 
 func BenchmarkSimpleStaticSumDefault(b *testing.B) {
