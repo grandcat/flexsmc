@@ -18,15 +18,27 @@ func (pp *DbgPingPong) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 	// TODO: generate unique session ID
 	sessID := "f13xdbg"
 
-	// Debug phase
-	p1 := &pbJob.SMCCmd{
-		SessionID: sessID,
-		Payload: &pbJob.SMCCmd_Debug{Debug: &pbJob.DebugPhase{
-			Ping:    42,
-			Options: task.Options,
-		}},
+	var numPingPhases int
+	switch task.Aggregator {
+	case pbJob.Aggregator_DBG_PINGPONG_10:
+		numPingPhases = 10
+	case pbJob.Aggregator_DBG_PINGPONG_100:
+		numPingPhases = 100
+	default:
+		numPingPhases = 1
 	}
 
-	inOut.Tasks = append(inOut.Tasks, p1)
+	for i := numPingPhases; i > 0; i-- {
+		ph := &pbJob.SMCCmd{
+			SessionID: sessID,
+			Payload: &pbJob.SMCCmd_Debug{Debug: &pbJob.DebugPhase{
+				Ping:       int32(i),
+				MorePhases: (i > 1),
+				Options:    task.Options,
+			}},
+		}
+		inOut.Tasks = append(inOut.Tasks, ph)
+	}
+
 	return nil
 }
