@@ -72,9 +72,9 @@ message PreparePhase {
     SMCTask smcTask                   = 3;
 }
 
-message SessionPhase {
+message LinkingPhase { }
 
-}
+message SessionPhase { }
 
 message DebugPhase {
     int32 ping                  = 1;
@@ -90,7 +90,8 @@ message SMCCmd {
     int32 smcPeerID         = 5;
     enum Phase {
         PREPARE  = 0;
-        SESSION  = 1;
+        LINK     = 1;
+        SESSION  = 2;
         // ...
         FINISH   = 126;
         ABORT    = 127;
@@ -99,6 +100,7 @@ message SMCCmd {
     // Payload packet
     oneof payload {
         PreparePhase prepare = 3;
+        LinkingPhase link    = 6;
         SessionPhase session = 4;
         DebugPhase debug     = 9;
     }
