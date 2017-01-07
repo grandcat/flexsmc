@@ -29,14 +29,14 @@ var (
 	reqNumPeers = flag.Int("req_nodes", seqMinPeers, "Required number of participating peers.")
 )
 
-var server *testNode
+var gw *testNode
 
 func init() {
 	flag.Parse()
 
 	// Start GW server.
-	server = newTestNode()
-	server.startGateway()
+	gw = newTestNode()
+	gw.startGateway()
 }
 
 type testNode struct {
@@ -92,10 +92,11 @@ func (tn *testNode) awaitPeers(timeout time.Duration, reqNumber int32) error {
 	}
 
 	for jCtx.Err() == nil {
-		_, err := tn.orch.Request(jCtx, task)
+		msg, err := tn.orch.Request(jCtx, task)
 		if err == nil {
 			return nil
 		}
+		fmt.Println("Waiting: msg:", msg, "Err:", err)
 		time.Sleep(time.Second * 2)
 	}
 
@@ -119,18 +120,22 @@ func (tn *testNode) sendDebugConfig(key, val, info string) error {
 	return err
 }
 
-func (tn *testNode) applyConfigToOnlinePeers(expID string) error {
+func (tn *testNode) requestSwitchLogfile(prefix string) error {
+	return tn.sendDebugConfig("b.chgLog", prefix, "DBG_CONFIG_PEERS")
+}
+
+func (tn *testNode) requestUpdateSetID(expID string) error {
 	return tn.sendDebugConfig("b.upExpID", expID, "DBG_CONFIG_PEERS")
 }
 
-func (tn *testNode) triggerUploadBenchmark() error {
+func (tn *testNode) requestUploadBenchmarks() error {
 	return tn.sendDebugConfig("b.upload", "1", "DBG_CONFIG_PEERS")
 }
 
-func submitTaskAndWait(b *testing.B, tn *testNode, task *pbJob.SMCTask, timeout time.Duration) (string, error) {
+func (tn *testNode) submitTaskAndWait(b *testing.B, task *pbJob.SMCTask, timeout time.Duration) (string, error) {
 	jCtx, jCancel := context.WithTimeout(context.Background(), timeout)
+	defer jCancel()
 
-	// b.ResetTimer()
 	start := statistics.StartTrack()
 	res, err := tn.orch.Request(jCtx, task)
 
@@ -141,13 +146,13 @@ func submitTaskAndWait(b *testing.B, tn *testNode, task *pbJob.SMCTask, timeout 
 		resStr = strconv.FormatFloat(res.Res, 'f', 2, 64)
 	}
 	statistics.G(0).End(res, start, task.Aggregator.String(), resStr, resErr)
-	jCancel()
+
 	return resStr, err
 }
 
 func preBenchmarkRound(b *testing.B, experimentID string) {
 	statistics.UpdateSetID(experimentID)
-	if err := server.applyConfigToOnlinePeers(experimentID); err != nil {
+	if err := gw.requestUpdateSetID(experimentID); err != nil {
 		b.Error("Could not apply new config to all peers:", err)
 	}
 }
@@ -157,7 +162,7 @@ func postBenchmarkRound(b *testing.B) {
 	// - Local
 	debughelper.UploadBenchmarks()
 	// - Remote
-	if err := server.triggerUploadBenchmark(); err != nil {
+	if err := gw.requestUploadBenchmarks(); err != nil {
 		b.Error("Statistics upload failed:", err)
 	}
 }
@@ -180,7 +185,7 @@ func doBench(b *testing.B, task *pbJob.SMCTask, info string) {
 	if *reqNumPeers != 0 {
 		n := int32(*reqNumPeers)
 		b.Logf("Waiting for %d nodes to become ready...", n)
-		err := server.awaitPeers(time.Second*60, n)
+		err := gw.awaitPeers(time.Second*60, n)
 		if err != nil {
 			b.Fatal("Not enough peers:", err.Error())
 			b.FailNow()
@@ -188,12 +193,16 @@ func doBench(b *testing.B, task *pbJob.SMCTask, info string) {
 		b.Logf("%d nodes ready, starting.", n)
 	}
 
+	// Create specific logfile for each benchmark.
+	logPrefix := "stats." + info + "."
+	statistics.SwitchLog(logPrefix)
+	gw.requestSwitchLogfile(logPrefix)
+
 	// Number of peers to evaluate.
 	var numPeers []int
 	for i := seqMinPeers; i <= *reqNumPeers; i += seqEveryNthPeer {
 		numPeers = append(numPeers, i)
 	}
-
 	// Host configuration.
 	benchmarks := []struct {
 		cpu int
@@ -215,7 +224,7 @@ func doBench(b *testing.B, task *pbJob.SMCTask, info string) {
 
 			b.Run(expID, func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
-					res, err := submitTaskAndWait(b, server, task, time.Second*50)
+					res, err := gw.submitTaskAndWait(b, task, time.Second*50)
 					b.Logf("Iter %d: Res: %s [Err: %v]", i, res, err)
 
 					// Give nodes some ms to recover for next job round.
@@ -239,10 +248,21 @@ func BenchmarkE2EFresco1Ping(b *testing.B) {
 	doBench(b, task, "1ping")
 }
 
-func BenchmarkSimpleStaticSum(b *testing.B) {
+func BenchmarkSimpleStaticSumDefault(b *testing.B) {
 	task := &pbJob.SMCTask{
 		Set:        "all",
 		Aggregator: pbJob.Aggregator_SUM,
 	}
-	doBench(b, task, "simplesum")
+	doBench(b, task, "sisum")
+}
+
+func BenchmarkSimpleStaticSumSeparateLinking(b *testing.B) {
+	task := &pbJob.SMCTask{
+		Set:        "all",
+		Aggregator: pbJob.Aggregator_SUM,
+		Options: map[string]*pbJob.Option{
+			"useLinkingPhase": &pbJob.Option{&pbJob.Option_Dec{1}},
+		},
+	}
+	doBench(b, task, "sisumWLink")
 }

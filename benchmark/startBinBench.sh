@@ -12,12 +12,13 @@ fi
 tmpID=${FLEX_ID:-1}
 ID="$(printf "%02d" $tmpID)"  # Zero pad for ascending sorting of peers.
 eth="${FLEX_IFACE:-}"
-logLev="${DEBUG_LEVEL:-1}"
 
 # Test and benchmark parameters
 reqPeers="${1:-0}"
-benchID="${2:-0}"
+benchInfo="${2:-0}"
 benchTime="${BENCH_TIME:-10s}"
+# Benchmark tests
+benchTasks="${3:-.}"
 
 # Assembly options passed to flexsmc executable.
 FLEX_ARGS=""
@@ -31,6 +32,6 @@ if [[ ! -z "${eth// }" ]]; then
 	echo "Custom inteface: ${eth// }"
 fi
 
-cmd="binBench -test.bench=. -test.v=1 -test.benchtime ${benchTime} ${FLEX_ARGS} -bench_id=${benchID} -stats_granularity=1 -req_nodes=${reqPeers}"
+cmd="binBench -test.bench=${benchTasks} -test.v=1 -test.benchtime ${benchTime} ${FLEX_ARGS} -bench_id=${benchInfo} -stats_granularity=1 -req_nodes=${reqPeers}"
 echo ${scriptPath}/$cmd
 ${scriptPath}/${cmd}
