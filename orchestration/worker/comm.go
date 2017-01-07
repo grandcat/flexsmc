@@ -34,8 +34,8 @@ func (pc *PeerNetwork) SubmitJob(ctx context.Context, description JobInstruction
 	select {
 	case pc.jobs <- j:
 		// Everything fine. Soon, an available worker should start processing the task.
-	default:
-		return nil, fmt.Errorf("too many tasks running")
+	case <-ctx.Done():
+		return nil, fmt.Errorf("could not submit job: %s", ctx.Err().Error())
 	}
 
 	return j, nil
@@ -70,7 +70,14 @@ func (pc *PeerNetwork) jobWorker() {
 }
 
 func processJob(j *job) {
-	prepCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	if ctxErr := j.ctx.Err(); ctxErr != nil {
+		// Job already expired before we could work on it.
+		// Notify callee before even trying to contact our peers.
+		j.haltOrAbort(newPeerErr(ctxErr, Aborted, -1, nil))
+		return
+	}
+	// XXX: use default job context for this as well?
+	prepCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	err := j.openPeerChats(prepCtx)
