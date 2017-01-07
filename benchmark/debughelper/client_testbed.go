@@ -18,6 +18,13 @@ func ProcessDebugPhase(in *pbJob.DebugPhase) (resp *pbJob.CmdResult, moreCmds bo
 
 	skipSMC := false
 	// Configure local environment for benchmark.
+	if opt, ok := dbgOpts["b.chgLog"]; ok && len(opt.GetStr()) > 0 {
+		newLogPrefix := opt.GetStr()
+		glog.Infof(">>>>>>> DBG: change logfile to %s", newLogPrefix)
+		statistics.SwitchLog(newLogPrefix)
+
+		skipSMC = true
+	}
 	if opt, ok := dbgOpts["b.upExpID"]; ok {
 		updateSet := opt.GetStr()
 		glog.Infof(">>>>>>> DBG: %v [%b]", updateSet, DebugModeEnabled)
