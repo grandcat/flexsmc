@@ -1,6 +1,9 @@
 package pipeline
 
 import (
+	"time"
+
+	"github.com/golang/glog"
 	"github.com/grandcat/flexsmc/orchestration/worker"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 )
@@ -23,6 +26,10 @@ func NewPipeline(pipes ...Pipe) *Pipeline {
 	return p
 }
 
+func (p *Pipeline) DedicatedDebugPipes(pipes ...Pipe) {
+	p.dgbPipes = pipes
+}
+
 func (p *Pipeline) Process(task *pbJob.SMCTask) (*worker.JobInstruction, error) {
 	changeset := &worker.JobInstruction{}
 	selectedPipes := p.pipes
@@ -40,6 +47,22 @@ func (p *Pipeline) Process(task *pbJob.SMCTask) (*worker.JobInstruction, error) 
 	return changeset, nil
 }
 
-func (p *Pipeline) DedicatedDebugPipes(pipes ...Pipe) {
-	p.dgbPipes = pipes
+const (
+	pipeMaxRetries         = 3
+	pipeWaitBetweenRetries = time.Millisecond * 2
+)
+
+func (p *Pipeline) ProcessWithRetry(task *pbJob.SMCTask) (*worker.JobInstruction, error) {
+	var err error
+	for i := 1; i <= pipeMaxRetries; i++ {
+		var instr *worker.JobInstruction
+		instr, err = p.Process(task)
+		if err == nil {
+			return instr, err
+		}
+		// TODO: set V level to 2 after testing
+		glog.V(1).Infof("Pipe failed in %dth attempt: %s", i, err.Error())
+		time.Sleep(pipeWaitBetweenRetries)
+	}
+	return nil, err
 }

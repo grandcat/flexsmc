@@ -43,8 +43,14 @@ func NewFIFOOrchestration(reg *directory.Registry) Orchestration {
 }
 
 func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (*pbJob.SMCResult, error) {
-	// 1. Transform task to set of instructions (should not block)
-	jobInstr, err := fo.prePipe.Process(task)
+	// 1. Transform task to set of instructions
+	//
+	// It happens that some peers did not manage to establish new communication channels
+	// if huge batch of small task was sent to them before. Retry multiple times
+	// to catch up. This delays execution at this point by some milliseconds, but makes it
+	// more robust regarding peer churn.
+	// This step does not involve any additional comm round-trips to the peers.
+	jobInstr, err := fo.prePipe.ProcessWithRetry(task)
 	if err != nil {
 		glog.V(1).Infof("Orchestration: preprocess pipeline failed: %v", err.Error())
 		return nil, err
@@ -65,7 +71,7 @@ func (fo *FifoOrchestration) Request(ctx context.Context, task *pbJob.SMCTask) (
 		glog.V(2).Infof("PREV RESULT BEFORE RESUBMIT: %v [Error: %v]", res, err)
 		// Let's assume a peer dropped its connection. So just rerun the job pipeline
 		// should suffice in most cases. Let's try :)
-		newJobInstr, err := fo.prePipe.Process(task)
+		newJobInstr, err := fo.prePipe.ProcessWithRetry(task)
 		if err != nil {
 			glog.V(1).Infof("Orchestration Resubmit: preprocess pipeline failed: %v", err.Error())
 			return nil, err
