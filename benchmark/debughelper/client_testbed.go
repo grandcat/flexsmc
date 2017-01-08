@@ -20,14 +20,14 @@ func ProcessDebugPhase(in *pbJob.DebugPhase) (resp *pbJob.CmdResult, moreCmds bo
 	// Configure local environment for benchmark.
 	if opt, ok := dbgOpts["b.chgLog"]; ok && len(opt.GetStr()) > 0 {
 		newLogPrefix := opt.GetStr()
-		glog.Infof(">>>>>>> DBG: change logfile to %s", newLogPrefix)
+		glog.V(1).Infof(">>>>>>> DBG: change logfile to %s", newLogPrefix)
 		statistics.SwitchLog(newLogPrefix)
 
 		skipSMC = true
 	}
 	if opt, ok := dbgOpts["b.upExpID"]; ok {
 		updateSet := opt.GetStr()
-		glog.Infof(">>>>>>> DBG: %v [%b]", updateSet, DebugModeEnabled)
+		glog.V(1).Infof(">>>>>>> DBG: %v [%b]", updateSet, DebugModeEnabled)
 		statistics.UpdateSetID(updateSet)
 		// Enforce OS configuration.
 		ConfigOS()
@@ -35,7 +35,7 @@ func ProcessDebugPhase(in *pbJob.DebugPhase) (resp *pbJob.CmdResult, moreCmds bo
 		skipSMC = true
 	}
 	if _, ok := dbgOpts["b.upload"]; ok {
-		glog.Info(">>>>>>> DBG Upload")
+		glog.V(1).Info(">>>>>>> DBG Upload")
 		UploadBenchmarks()
 
 		skipSMC = true
@@ -47,7 +47,7 @@ func ProcessDebugPhase(in *pbJob.DebugPhase) (resp *pbJob.CmdResult, moreCmds bo
 	// Generate simple response. This tell the SMC loop we want to leave and
 	// there are no further commands to the SMC backend.
 	if skipSMC {
-		glog.Info(">>>>>>> DBG SkipSMC")
+		glog.V(2).Info(">>>>>>> DBG SkipSMC")
 		resp = &pbJob.CmdResult{
 			Status: pbJob.CmdResult_SUCCESS_DONE,
 			Msg:    "Debug: skipSMC",
