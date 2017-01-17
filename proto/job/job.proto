@@ -48,6 +48,8 @@ message Option {
 message SMCTask {
     string set                       = 1;
     DataOrigin source                = 2;
+    // Limit maximum number of data items to process from a (bigger) series. Default is 1.
+    int32 maxDataItems               = 10;
     // (Pre)Selectors
     Aggregator aggregator            = 4;
     map<string, Option> options      = 6;
@@ -77,7 +79,12 @@ message PreparePhase {
 
 message LinkingPhase { }
 
-message SessionPhase { }
+message SessionPhase {
+    // Number of parallel operations if at least same number of data entities
+    // are available on each peer. Must be smaller or equal to numDataItems.
+    // Default is 1.
+    int32 parallelBatchOps = 2;
+}
 
 message DebugPhase {
     int32 ping                  = 1;
