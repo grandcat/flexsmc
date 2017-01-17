@@ -1,6 +1,12 @@
 package directory
 
-import pbJob "github.com/grandcat/flexsmc/proto/job"
+import (
+	"context"
+
+	"fmt"
+
+	pbJob "github.com/grandcat/flexsmc/proto/job"
+)
 
 // ChannelID is a local identifier incorporating a node's relative
 // position within a SMC network subset.
@@ -8,7 +14,7 @@ type ChannelID int32
 
 type ChatWithPeer interface {
 	Peer() *PeerInfo
-	Instruct(cmd *pbJob.SMCCmd)
+	Instruct(ctx context.Context, cmd *pbJob.SMCCmd) error
 	InstructRaw() chan<- *pbJob.SMCCmd
 	GetFeedback() <-chan *pbJob.CmdResult
 	UpdateMetadata(cid ChannelID) ChatWithPeer
@@ -62,7 +68,7 @@ func (t smcChat) InstructRaw() chan<- *pbJob.SMCCmd {
 	return t.to
 }
 
-func (t smcChat) Instruct(cmd *pbJob.SMCCmd) {
+func (t smcChat) Instruct(ctx context.Context, cmd *pbJob.SMCCmd) error {
 	// TODO: add context to abort
 	newCmd := &pbJob.SMCCmd{}
 	// Copy top level only (NO deep copy! I want it like that ;)
@@ -71,7 +77,13 @@ func (t smcChat) Instruct(cmd *pbJob.SMCCmd) {
 	// a race condition (-> thread safety)
 	newCmd.SmcPeerID = int32(t.chanID)
 
-	t.to <- newCmd
+	select {
+	case t.to <- newCmd:
+		// Fine.
+	case <-ctx.Done():
+		return fmt.Errorf("Err during Cmd instruction: %v", ctx.Err().Error())
+	}
+	return nil
 }
 
 func (t smcChat) GetFeedback() <-chan *pbJob.CmdResult {
