@@ -22,14 +22,14 @@ var (
 )
 
 type FrescoConnect struct {
-	backendSocket string
-	readyWorkers  chan struct{}
+	smcProviderAddr string
+	readyWorkers    chan struct{}
 }
 
-func newFrescoConnector(socket string) Connector {
+func newFrescoConnector(bindAddr string) Connector {
 	c := &FrescoConnect{
-		backendSocket: socket,
-		readyWorkers:  make(chan struct{}, parallelSessions),
+		smcProviderAddr: bindAddr,
+		readyWorkers:    make(chan struct{}, parallelSessions),
 	}
 	// Initially fill in amount of sessions our resources are enough for.
 	for i := 0; i < parallelSessions; i++ {
@@ -41,7 +41,7 @@ func newFrescoConnector(socket string) Connector {
 
 func (con *FrescoConnect) RequestSession(ctx context.Context) (Session, error) {
 	// Connect to local Fresco instance to see if it is present at all
-	cc, err := DialSocket(con.backendSocket)
+	cc, err := DialSocket(con.smcProviderAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (con *FrescoConnect) RequestSession(ctx context.Context) (Session, error) {
 }
 
 func (con *FrescoConnect) ResetAll(ctx context.Context) error {
-	cc, err := DialSocket(con.backendSocket)
+	cc, err := DialSocket(con.smcProviderAddr)
 	if err != nil {
 		return err
 	}

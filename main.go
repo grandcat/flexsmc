@@ -22,7 +22,7 @@ var (
 	enPairing = flag.Bool("pairing", false, "Enable or disable pairing phase")
 	peerInfo  = flag.String("peerinfo", "123", "Additional peer information supplied during pairing")
 
-	smcConnSock = flag.String("smcsocket", "", "Custom SMC socket to pass to SMC connector")
+	smcProvider = flag.String("smcsocket", "", "Custom bind address for SMC provider to pass to SMC connector")
 )
 
 func runGateway() {
@@ -72,7 +72,7 @@ func runPeer() {
 			UsePairing: *enPairing,
 		},
 		GatewayID:  *gwID,
-		SmcBackend: smc.DefaultSMCConnector(*smcConnSock),
+		SmcBackend: smc.DefaultSMCConnector(*smcProvider),
 	}
 	peer := node.NewPeer(opts)
 	peer.Init()
