@@ -50,8 +50,8 @@ import (
 
 func Test_ParallelConnect(t *testing.T) {
 	type args struct {
-		socket string
-		id     int32
+		addr string
+		id   int32
 	}
 	tests := []struct {
 		name string
@@ -60,22 +60,22 @@ func Test_ParallelConnect(t *testing.T) {
 		{
 			name: "p1",
 			args: args{
-				socket: "unix:///tmp/grpc1.sock",
-				id:     1,
+				addr: "localhost:13131",
+				id:   1,
 			},
 		},
 		{
 			name: "p2",
 			args: args{
-				socket: "unix:///tmp/grpc2.sock",
-				id:     2,
+				addr: "localhost:13132",
+				id:   2,
 			},
 		},
 		{
 			name: "p3",
 			args: args{
-				socket: "unix:///tmp/grpc3.sock",
-				id:     3,
+				addr: "localhost:13133",
+				id:   3,
 			},
 		},
 	}
@@ -84,7 +84,7 @@ func Test_ParallelConnect(t *testing.T) {
 		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			fullSMCRound(tc.args.socket, tc.args.id)
+			fullSMCRound(tc.args.addr, tc.args.id)
 		})
 	}
 }

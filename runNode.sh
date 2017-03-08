@@ -25,9 +25,9 @@ tmpID=${FLEX_ID:-1}
 ID="$(printf "%02d" $tmpID)"  # Zero pad for ascending sorting of peers.
 gwRole="${FLEX_ROLE_GW:-0}"
 eth="${FLEX_IFACE:-}"
-logLev="${FLEX_LOG_LEVEL:-1}"
+logLev="${FLEX_LOG_LEVEL:-2}"
 # Sensor node specific settings.
-smcSocket="${FLEX_SMCSOCK:-unix:///tmp/grpc-flexsmc1.sock}"
+smcSocket="${FLEX_SMCSOCK:-localhost:13131}"
 enPairing=1
 # Benchmark specific settings.
 benchGranularity="${BENCH_STATS_GRANULARITY:-0}"
