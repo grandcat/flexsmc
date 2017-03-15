@@ -44,6 +44,8 @@ type testNode struct {
 	gw   *node.Gateway
 	reg  *directory.Registry
 	orch orchestration.Orchestration
+
+	errCnt int
 }
 
 func newTestNode() *testNode {
@@ -151,6 +153,13 @@ func (tn *testNode) submitTaskAndWait(b *testing.B, task *pbJob.SMCTask, timeout
 	}
 	statistics.G(0).End(res, start, task.Aggregator.String(), resStr, resErr)
 
+	// Wait some time in case of error. So there is more time to recover in Fresco.
+	if err != nil {
+		tn.errCnt++
+		fmt.Println(">>> Task error number:", tn.errCnt, "Reason", resErr)
+		time.Sleep(time.Second * 15)
+	}
+
 	return resStr, err
 }
 
@@ -159,6 +168,7 @@ func preBenchmarkRound(b *testing.B, experimentID string) {
 	if err := gw.requestUpdateSetID(experimentID); err != nil {
 		b.Error("Could not apply new config to all peers:", err)
 	}
+	time.Sleep(time.Second * 3)
 }
 
 func postBenchmarkRound(b *testing.B) {
@@ -172,7 +182,7 @@ func postBenchmarkRound(b *testing.B) {
 }
 
 const (
-	seqMinPeers     = 3
+	seqMinPeers     = 7
 	seqEveryNthPeer = 2
 )
 
@@ -228,7 +238,7 @@ func doBench(b *testing.B, task *pbJob.SMCTask, info string) {
 
 			b.Run(expID, func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
-					res, err := gw.submitTaskAndWait(b, task, time.Second*50)
+					res, err := gw.submitTaskAndWait(b, task, time.Second*180)
 					b.Logf("Iter %d: Res: %s [Err: %v]", i, res, err)
 
 					// Give nodes some ms to recover for next job round.
@@ -254,7 +264,7 @@ func BenchmarkE2EFrescoPing(b *testing.B) {
 		tSuffix string
 		ag      pbJob.Aggregator
 	}{
-		// {"01", pbJob.Aggregator_DBG_PINGPONG},
+		{"01", pbJob.Aggregator_DBG_PINGPONG},
 		{"10", pbJob.Aggregator_DBG_PINGPONG_10},
 	}
 
@@ -313,4 +323,34 @@ func BenchmarkSimpleStaticSumSeparateLinking(b *testing.B) {
 		},
 	}
 	doBench(b, task, "sisumWLink")
+}
+
+func BenchmarkVectorSumSeparateLinking(b *testing.B) {
+	task := &pbJob.SMCTask{
+		Set:        "all",
+		Aggregator: pbJob.Aggregator_SUM,
+		Options: map[string]*pbJob.Option{
+			"useLinkingPhase": &pbJob.Option{&pbJob.Option_Dec{1}},
+		},
+	}
+
+	batchConfigs := []struct {
+		maxItems  int32
+		batchSize int32
+	}{
+		// {1000, 1},
+		// {1000, 2},
+		{1000, 10},
+		{1000, 20},
+		{1000, 50},
+		{1000, 500},
+		{1000, 1000},
+	}
+
+	for _, conf := range batchConfigs {
+		task.MaxDataItems = conf.maxItems
+		task.Options["batchOpSize"] = &pbJob.Option{&pbJob.Option_Dec{conf.batchSize}}
+
+		doBench(b, task, fmt.Sprintf("vecsumWLink_i_%d_bt_%d", conf.maxItems, conf.batchSize))
+	}
 }

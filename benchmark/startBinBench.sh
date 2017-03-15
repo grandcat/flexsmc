@@ -32,6 +32,6 @@ if [[ ! -z "${eth// }" ]]; then
 	echo "Custom inteface: ${eth// }"
 fi
 
-cmd="binBench -test.bench=${benchTasks} -test.v=1 -test.benchtime ${benchTime} ${FLEX_ARGS} -bench_id=${benchInfo} -stats_granularity=1 -req_nodes=${reqPeers}"
+cmd="binBench -test.bench=${benchTasks} -test.v=1 -test.benchtime ${benchTime} ${FLEX_ARGS} -bench_id=${benchInfo} -stats_granularity=1 -req_nodes=${reqPeers} -v 2"
 echo ${scriptPath}/$cmd
 ${scriptPath}/${cmd}
