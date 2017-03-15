@@ -268,16 +268,21 @@ func (j *job) queryTargetsSync(ctx context.Context, cmd *pbJob.SMCCmd) ([]*pbJob
 	// Profile execution time if activated.
 	defer statistics.G(1).End(cmd.GetPayload(), statistics.StartTrack())
 
+	var accumulatedErrFlags pbJob.CmdResult_Status
+	var errPeers []*directory.PeerInfo
+
 	// First, disseminate the job to all peers.
 	// Then, collect all results, but expect the results to be there until timeout occurs.
 	for _, pch := range j.chats {
-		pch.Instruct(cmd)
+		err := pch.Instruct(ctx, cmd)
+		if err != nil {
+			accumulatedErrFlags |= pbJob.CmdResult_STREAM_ERR
+			errPeers = append(errPeers, pch.Peer())
+		}
 	}
 	// Receive
 	// Each peer delivers its response independently from each other. If one peer blocks,
 	// there is still the result of all other peers after the timeout occurs.
-	var accumulatedErrFlags pbJob.CmdResult_Status
-	var errPeers []*directory.PeerInfo
 	resps := make([]*pbJob.CmdResult, 0, len(j.chats))
 	for _, pch := range j.chats {
 		resp, commErr := pullRespUntilDone(ctx, pch.GetFeedback())
