@@ -3,11 +3,14 @@ package pipeline
 import (
 	"errors"
 
+	"fmt"
+
 	"github.com/grandcat/flexsmc/orchestration/worker"
 	pbJob "github.com/grandcat/flexsmc/proto/job"
 )
 
 type PhaseBuilder struct {
+	idCnt int
 }
 
 func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction) error {
@@ -16,12 +19,16 @@ func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 	}
 
 	// TODO: generate unique session ID
-	sessID := "f13x0123456789"
+	sessID := fmt.Sprintf("f13x%05d", b.idCnt)
+	// b.idCnt++
+	// XXX: keep it the same. It will verify whether resources are cleaned properly on peer side.
 
 	// Collect configuration for Prepare phase
 	var participants []*pbJob.PreparePhase_Participant
 	for cid, p := range inOut.Participants {
-		// XXX: for testing on localhost: use continous port range
+		// XXX: for testing: use continous port range. Does not respect used ports
+		//		on host site.
+		//		We assume that a peer will complain right now if it does not work out.
 		if p.Addr.Port < 10000 {
 			p.Addr.Port = 10000 + int(cid)
 		}
@@ -59,11 +66,18 @@ func (b *PhaseBuilder) Process(task *pbJob.SMCTask, inOut *worker.JobInstruction
 		// delete(task.Options, "useLinkingPhase")
 	}
 
-	// Session phase.
+	// Session phase
+	var batchOpSize int32
+	if tOpt, ok := task.Options["batchOpSize"]; ok && tOpt.GetDec() > 0 {
+		batchOpSize = tOpt.GetDec()
+	}
+
 	p2 := &pbJob.SMCCmd{
 		SessionID: sessID,
 		State:     pbJob.SMCCmd_SESSION,
-		Payload:   &pbJob.SMCCmd_Session{Session: &pbJob.SessionPhase{}},
+		Payload: &pbJob.SMCCmd_Session{Session: &pbJob.SessionPhase{
+			ParallelBatchOps: batchOpSize,
+		}},
 	}
 	inOut.Tasks = append(inOut.Tasks, p2)
 
