@@ -53,8 +53,8 @@ message SMCTask {
     // (Pre)Selectors
     Aggregator aggregator            = 4;
     map<string, Option> options      = 6;
-    string ticketSignature           = 7;
 
+    string ticketSignature           = 7;
     google.protobuf.Timestamp issued = 8;
     string querySignature            = 9;
 }
@@ -81,7 +81,7 @@ message LinkingPhase { }
 
 message SessionPhase {
     // Number of parallel operations if at least same number of data entities
-    // are available on each peer. Must be smaller or equal to numDataItems.
+    // are available on each peer. Must be smaller or equal to maxDataItems.
     // Default is 1.
     int32 parallelBatchOps = 2;
 }
@@ -96,6 +96,7 @@ message DebugPhase {
 // Envelopes to send and receive jobs with some context.
 
 message SMCCmd {
+    // Peer context
     string sessionID        = 1;
     int32 smcPeerID         = 5;
     enum Phase {
@@ -125,14 +126,14 @@ message CmdResult {
         // Class: success and info
         SUCCESS      = 0;
         SUCCESS_DONE = 1;
-        // Class: soft or recoverable errors (32 - 63)
+        // Class: soft or recoverable errors (33 - 63)
         ERR_CLASS_NORM  = 32;
         UNKNOWN_CMD     = 33;
         DENIED          = 34;
-        // Class: irreversible errors on peer side (64 - 127)
+        // Class: irreversible errors on peer side (65 - 127)
         ERR_CLASS_FAULT = 64;
         ABORTED         = 65;
-        // Class: communication errors (128 - 255)
+        // Class: communication errors (129 - 255)
         ERR_CLASS_COMM  = 128;
         STREAM_ERR      = 129;
 
