@@ -113,7 +113,7 @@ func (s *frescoSession) Init(ctx context.Context, id string) error {
 	}
 	// Associate session id with context for whole session
 	md := metadata.Pairs("session-id", id)
-	ctx = metadata.NewContext(ctx, md)
+	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	s.ctx = ctx
 	s.id = id
